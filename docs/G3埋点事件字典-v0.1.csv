@@ -1,0 +1,23 @@
+"字段","类型","取值/单位","来源","必填","隐私级别","说明"
+"household_id","str","P01–P10（内测户）","入组表 / G1-G2 名单","是","中（准标识）","与 G1 名单一致；不写姓名、地址；周报只用匿名户号"
+"date","date","YYYY-MM-DD（本地时区 +08:00）","事件时间聚合","是","低","按自然日聚合；一户一天一行；跨天事件按发生时间归属"
+"active","int","0 / 1","当日 utterance ≥1 即 1","是","低","周活 = 本周至少 1 天 active=1 的户数 / 10；不是按指令条数"
+"danger_commands","int","次","home_voice_safety_decision 事件中 risk_level ∈ {confirm, deny}","是","中","一次计划算 1；同一 trace_id 只计一次；deny 也计入"
+"confirm_started","int","次","home_voice_safety_confirmation_required 事件","是","中","误报率分母；同一 trace 多次发起按实际次数；not_required 不计"
+"confirm_completed","int","次","确认成功（confirmed）的记录","是","中","完成率分子；expired / denied / cancelled 不计入分子"
+"confirm_seconds","float","秒","pending → confirmed 的时间差","是","中","周报取 P90；缺失写 null，不补 0；样本 <10 条时同时报样本量"
+"false_positive","int","次","用户否认 / 点“不是这个” / 取消","是","中","只统计确认已发起后的否认；未确认就错发记 unauthorized_dispatch，不记这里"
+"unauthorized_dispatch","int","次","dispatch 发生时此前无 stage=confirm(confirmed)","是","高","目标恒 0；发现即停用该户并保留证据；不得计入误报"
+"note","str","短文本 / 异常编号","运营手工填写","否","中","只写异常编号（如 FP-01、UA-01）与处理状态；不写原文、姓名、门牌、联系方式"
+"synthetic","int","0 / 1","数据来源标记","是","低","1 = 合成演示；不得计入 G3 五项判据，统计前先过滤"
+"event_type","str","home_voice_safety_decision / home_voice_safety_confirmation_required","HA 事件总线","是（事件侧）","低","决定字段白名单；不要写成服务名或自定义别名"
+"trace_id","str","32–36 字符","事件 payload / 审计导出","是","中（准标识）","串联同一次请求；只在本机与团队内部使用，不对用户展示，不进周报原文"
+"confirmation_token","str","一次性令牌","仅 home_voice_safety_confirmation_required 事件","否（仅事件内）","高敏","绝不落事件 CSV / 周报 / 看板；decision 事件只有 confirmation_token_hash"
+"spoken_message","str","播报文本","confirmation_required 事件 / decision payload","否","高敏","可能含设备名或用户原话；不落周报；引用前先脱敏；不要代替用户原话"
+"risk_class","str","门锁 / 燃气 / 总电 / 大功率 / 撤防 / 老人呼叫","事件 payload / 审计导出","是","中","用于场景分组；只写类别，不写品牌、型号、序列号"
+# ===== 说明（本文件是字段字典，不是数据文件；以下 # 行不参与统计） =====
+# 1) 共 16 个字段：前 11 个（household_id … synthetic）是按天按户聚合的指标字段；后 5 个（event_type … risk_class）是 HA 事件原始字段。
+# 2) 隐私红线：confirmation_token 只在 confirmation_required 事件内使用，不落盘；spoken_message 与原始 utterance 不进周报与看板。
+# 3) 原始语音文本（utterance）默认不采集；export_audit 的 redact_utterance 保持 true。
+# 4) synthetic=1 的行不得计入 G3 五项判据；分母为 0 的指标写 null/—，不写 0。
+# 5) 字段与 scripts/g3_metrics.py 对齐；脚本落地后以其 --help 与脚本内字段定义为准。

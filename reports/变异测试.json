@@ -1,0 +1,229 @@
+{
+  "mutations": 16,
+  "killed": 16,
+  "survived": 0,
+  "restore_hash_verified": true,
+  "killed_all": true,
+  "results": [
+    {
+      "id": "M1",
+      "name": "风险等级取最小而非最大（危险动作被降级为安全）",
+      "file": "hvsl/risk.py",
+      "tests": [
+        "tests/test_risk_policy.py",
+        "tests/test_safety_gate.py",
+        "tests/test_evals.py"
+      ],
+      "killed": true,
+      "killed_by": "tests/test_risk_policy.py::test_deny_beats_confirm_when_two_rules_match, tests/test_risk_policy.py::test_batch_target_including_the_gas_valve_is_refused_entirely, tests/test_evals.py::test_every_case_passes",
+      "seconds": 3.3,
+      "restored_ok": true,
+      "sha256": "03ce3d0be96afeabfef5573334ad8366cb6f7ab949067241986ccf68382da6e4"
+    },
+    {
+      "id": "M2",
+      "name": "确认门禁不拦路（危险计划直接进入下发）",
+      "file": "hvsl/engine.py",
+      "tests": [
+        "tests/test_safety_gate.py",
+        "tests/test_ha_backend.py"
+      ],
+      "killed": true,
+      "killed_by": "tests/test_safety_gate.py::test_dangerous_action_is_blocked_before_confirmation[alarm_disarm], tests/test_safety_gate.py::test_dangerous_action_is_blocked_before_confirmation[door_unlock], tests/test_safety_gate.py::test_dangerous_action_is_blocked_before_confirmation[gas_supply_close]",
+      "seconds": 10.4,
+      "restored_ok": true,
+      "sha256": "cf02becdea4b6a0c8805e4135d19d7c950aa95e4bfe21972a7781665ef204d29"
+    },
+    {
+      "id": "M3",
+      "name": "去重窗口失效（重复指令重复下发）",
+      "file": "hvsl/idempotency.py",
+      "tests": [
+        "tests/test_idempotency.py"
+      ],
+      "killed": true,
+      "killed_by": "tests/test_idempotency.py::test_replaying_the_same_intent_three_times_dispatches_once, tests/test_idempotency.py::test_dangerous_intent_still_dispatches_once_across_two_confirmations",
+      "seconds": 2.4,
+      "restored_ok": true,
+      "sha256": "b7ecbe43f303b63db524486efb6215e7547bcbef4169f5de3647ef6530f68f53"
+    },
+    {
+      "id": "M4",
+      "name": "不再先写留痕（下发前无 DISPATCHING 记录）",
+      "file": "hvsl/engine.py",
+      "tests": [
+        "tests/test_audit.py"
+      ],
+      "killed": true,
+      "killed_by": "tests/test_audit.py::test_the_audit_row_exists_before_the_backend_call",
+      "seconds": 2.7,
+      "restored_ok": true,
+      "sha256": "cf02becdea4b6a0c8805e4135d19d7c950aa95e4bfe21972a7781665ef204d29"
+    },
+    {
+      "id": "M5",
+      "name": "工具命名空间校验被关闭（HA 2026.9 前缀约定失效）",
+      "file": "hvsl/tools.py",
+      "tests": [
+        "tests/test_tools_registry.py"
+      ],
+      "killed": true,
+      "killed_by": "tests/test_tools_registry.py::test_registry_refuses_a_tool_without_the_namespace_prefix",
+      "seconds": 2.6,
+      "restored_ok": true,
+      "sha256": "cbb5dbf19d74d2a10bd262b7dd21a7aa2533999288d881734989def774cfbc82"
+    },
+    {
+      "id": "M6",
+      "name": "跳过 Pydantic 参数校验（越界参数直接下发）",
+      "file": "hvsl/engine.py",
+      "tests": [
+        "tests/test_tools_registry.py",
+        "tests/test_nlu_llm.py"
+      ],
+      "killed": true,
+      "killed_by": "tests/test_tools_registry.py::test_engine_rejects_an_out_of_range_argument, tests/test_nlu_llm.py::test_out_of_range_llm_argument_is_refused_by_the_engine",
+      "seconds": 4.4,
+      "restored_ok": true,
+      "sha256": "cf02becdea4b6a0c8805e4135d19d7c950aa95e4bfe21972a7781665ef204d29"
+    },
+    {
+      "id": "M7",
+      "name": "确认令牌不校验过期（超时后仍可下发）",
+      "file": "hvsl/gate.py",
+      "tests": [
+        "tests/test_safety_gate.py"
+      ],
+      "killed": true,
+      "killed_by": "tests/test_safety_gate.py::test_confirmation_expires_and_nothing_is_dispatched",
+      "seconds": 2.2,
+      "restored_ok": true,
+      "sha256": "ca69c58a550aca11aafd7aa7cf01d69765613260e8645d7868591a7ab02ee428"
+    },
+    {
+      "id": "M8",
+      "name": "真实/模拟标注失真（全部标成真实设备）",
+      "file": "hvsl/catalog.py",
+      "tests": [
+        "tests/test_risk_policy.py",
+        "tests/test_inventory.py"
+      ],
+      "killed": true,
+      "killed_by": "tests/test_risk_policy.py::test_backend_provenance_matches_the_catalog",
+      "seconds": 1.9,
+      "restored_ok": true,
+      "sha256": "7707cea29fd23cbeeeb12b002e0b7e7ff2dd31b31c697d633b37799ca7a0d743"
+    },
+    {
+      "id": "M9",
+      "name": "拒绝规则失效（可用对话关掉安全门禁 / 承诺厂商云接入）",
+      "file": "hvsl/risk.py",
+      "tests": [
+        "tests/test_safety_gate.py",
+        "tests/test_evals.py"
+      ],
+      "killed": true,
+      "killed_by": "tests/test_safety_gate.py::test_asking_to_disable_the_gate_is_refused",
+      "seconds": 2.7,
+      "restored_ok": true,
+      "sha256": "03ce3d0be96afeabfef5573334ad8366cb6f7ab949067241986ccf68382da6e4"
+    },
+    {
+      "id": "M10",
+      "name": "危险实体自报标签可覆盖评审过的清单",
+      "file": "hvsl/backends/home_assistant.py",
+      "tests": [
+        "tests/test_ha_backend.py"
+      ],
+      "killed": true,
+      "killed_by": "tests/test_ha_backend.py::test_a_device_cannot_talk_its_way_out_of_the_danger_list",
+      "seconds": 8.7,
+      "restored_ok": true,
+      "sha256": "0583ada8e0aa8f26b3aa88ffac4ed7ca44af11399c3c302120fe5f09af593cf0"
+    },
+    {
+      "id": "M11",
+      "name": "取消“模型不得自行宣布批量”的钳制（一句话点亮全屋）",
+      "file": "hvsl/engine.py",
+      "tests": [
+        "tests/test_guards.py",
+        "tests/test_evals.py"
+      ],
+      "killed": true,
+      "killed_by": "tests/test_guards.py::test_model_claimed_fan_out_without_a_scope_word_is_clamped",
+      "seconds": 2.4,
+      "restored_ok": true,
+      "sha256": "cf02becdea4b6a0c8805e4135d19d7c950aa95e4bfe21972a7781665ef204d29"
+    },
+    {
+      "id": "M12",
+      "name": "定时表达不再被拒绝（“明天七点”当场执行）",
+      "file": "hvsl/engine.py",
+      "tests": [
+        "tests/test_guards.py",
+        "tests/test_evals.py"
+      ],
+      "killed": true,
+      "killed_by": "tests/test_guards.py::test_schedule_words_are_refused_regardless_of_parser, tests/test_evals.py::test_every_case_passes, tests/test_evals.py::test_danger_red_lines_hold",
+      "seconds": 2.0,
+      "restored_ok": true,
+      "sha256": "cf02becdea4b6a0c8805e4135d19d7c950aa95e4bfe21972a7781665ef204d29"
+    },
+    {
+      "id": "M13",
+      "name": "设备类指词表校验被关闭（“把窗户打开”会去拉窗帘）",
+      "file": "hvsl/resolver.py",
+      "tests": [
+        "tests/test_guards.py",
+        "tests/test_evals.py"
+      ],
+      "killed": true,
+      "killed_by": "tests/test_guards.py::test_window_is_not_a_curtain, tests/test_guards.py::test_wrong_tool_choice_fails_safe_instead_of_guessing",
+      "seconds": 2.8,
+      "restored_ok": true,
+      "sha256": "d4ae9ac2cb76efd30425e5261d2b00011a9684b4e155767824de4cdc68748dee"
+    },
+    {
+      "id": "M14",
+      "name": "关掉“影子解析纠偏”（模型可以替用户把歧义消掉）",
+      "file": "hvsl/engine.py",
+      "tests": [
+        "tests/test_guards.py",
+        "tests/test_evals.py"
+      ],
+      "killed": true,
+      "killed_by": "tests/test_guards.py::test_entity_id_cannot_bypass_the_utterance_check, tests/test_guards.py::test_invented_device_name_is_vetoed_by_the_shadow_parser, tests/test_guards.py::test_shadow_check_runs_even_when_the_provider_label_is_rule",
+      "seconds": 2.6,
+      "restored_ok": true,
+      "sha256": "cf02becdea4b6a0c8805e4135d19d7c950aa95e4bfe21972a7781665ef204d29"
+    },
+    {
+      "id": "M15",
+      "name": "空目标时不再回到用户原话找类指词（“把窗户打开”可执行窗帘）",
+      "file": "hvsl/resolver.py",
+      "tests": [
+        "tests/test_guards.py",
+        "tests/test_evals.py"
+      ],
+      "killed": true,
+      "killed_by": "tests/test_guards.py::test_wrong_tool_choice_fails_safe_instead_of_guessing",
+      "seconds": 2.3,
+      "restored_ok": true,
+      "sha256": "d4ae9ac2cb76efd30425e5261d2b00011a9684b4e155767824de4cdc68748dee"
+    },
+    {
+      "id": "M16",
+      "name": "模型可用 entity_id 绕过原话校验（自己挑一盏灯）",
+      "file": "hvsl/guards.py",
+      "tests": [
+        "tests/test_guards.py",
+        "tests/test_evals.py"
+      ],
+      "killed": true,
+      "killed_by": "tests/test_guards.py::test_entity_id_cannot_bypass_the_utterance_check, tests/test_guards.py::test_grounding_check_rules",
+      "seconds": 2.6,
+      "restored_ok": true,
+      "sha256": "550f9dbf8245c7882401c5d90207d62ed098e8dbd4662701c279207ef7c8696f"
+    }
+  ]
+}

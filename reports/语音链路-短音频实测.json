@@ -1,0 +1,126 @@
+{
+  "settings": {
+    "audio": "var/clip18.wav",
+    "runs": 2,
+    "provider": "rule",
+    "backend": "simulated",
+    "entities": 17
+  },
+  "rows": [
+    {
+      "run": 1,
+      "asr": {
+        "audio_seconds": 18.0,
+        "load_seconds": 3.139,
+        "decode_seconds": 0.829,
+        "process_wall_seconds": 4.166,
+        "decode_rtf": 0.0461,
+        "end_to_end_rtf": 0.2315,
+        "windowed": false,
+        "warnings": [],
+        "device": "cuda",
+        "execution": "subprocess",
+        "segments": 1,
+        "text": "[redacted]"
+      },
+      "decision": {
+        "kind": "executed",
+        "risk": "low",
+        "dispatch": 1,
+        "timings_ms": {
+          "nlu": 0.715,
+          "dispatch": 0.015,
+          "total": 1.281
+        }
+      },
+      "tts": {
+        "provider": "windows-sapi",
+        "wall_seconds": 0.354,
+        "bytes": 218908
+      }
+    },
+    {
+      "run": 2,
+      "asr": {
+        "audio_seconds": 18.0,
+        "load_seconds": 3.118,
+        "decode_seconds": 0.785,
+        "process_wall_seconds": 4.105,
+        "decode_rtf": 0.0436,
+        "end_to_end_rtf": 0.2281,
+        "windowed": false,
+        "warnings": [],
+        "device": "cuda",
+        "execution": "subprocess",
+        "segments": 1,
+        "text": "[redacted]"
+      },
+      "decision": {
+        "kind": "deduplicated",
+        "risk": "low",
+        "dispatch": 0,
+        "timings_ms": {
+          "nlu": 0.056,
+          "dispatch": 0.0,
+          "total": 0.467
+        }
+      },
+      "tts": {
+        "provider": "windows-sapi",
+        "wall_seconds": 0.328,
+        "bytes": 305772
+      }
+    }
+  ],
+  "aggregates": {
+    "asr.load_seconds": {
+      "n": 2,
+      "mean": 3.128,
+      "min": 3.118,
+      "max": 3.139
+    },
+    "asr.decode_seconds": {
+      "n": 2,
+      "mean": 0.807,
+      "min": 0.785,
+      "max": 0.829
+    },
+    "asr.end_to_end_seconds": {
+      "n": 2,
+      "mean": 4.136,
+      "min": 4.105,
+      "max": 4.166
+    },
+    "asr.decode_rtf": {
+      "n": 2,
+      "mean": 0.045,
+      "min": 0.044,
+      "max": 0.046
+    },
+    "nlu.ms": {
+      "n": 2,
+      "mean": 0.386,
+      "min": 0.056,
+      "max": 0.715
+    },
+    "dispatch.ms": {
+      "n": 2,
+      "mean": 0.007,
+      "min": 0.0,
+      "max": 0.015
+    },
+    "decision_total.ms": {
+      "n": 2,
+      "mean": 0.874,
+      "min": 0.467,
+      "max": 1.281
+    },
+    "tts.seconds": {
+      "n": 2,
+      "mean": 0.341,
+      "min": 0.328,
+      "max": 0.354
+    }
+  },
+  "口径声明": "本文件全部数字为**实测值**（模拟后端 + 规则解析；ASR 为本机 GPU）；接真实设备或云端 LLM 后需重新测量。字错率(CER)：**合成语音（已知文本）已实测**，见 `reports/ASR-CER.md`；**真人/家庭噪声无人工对齐参照，未实测**。"
+}

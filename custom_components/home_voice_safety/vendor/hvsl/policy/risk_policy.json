@@ -1,0 +1,82 @@
+{
+  "version": "1",
+  "default_risk": "low",
+  "unreviewed_risk": "confirm",
+  "rules": [
+    {
+      "id": "door_unlock",
+      "risk": "confirm",
+      "match": { "tools_any": ["hvs.lock.unlock"] },
+      "reason": "开门锁会让入口失去防护，属于入户安全动作",
+      "prompt": "该指令会解锁【{{targets}}】。请回复确认（confirm）才会下发。"
+    },
+    {
+      "id": "gas_supply_open",
+      "risk": "deny",
+      "match": { "tools_any": ["hvs.switch.turn_on", "hvs.light.turn_on", "hvs.light.adjust_brightness"], "tag_any": ["danger:gas"] },
+      "reason": "燃气/灶具开阀不通过语音自动下发，请人工现场操作",
+      "prompt": ""
+    },
+    {
+      "id": "gas_supply_close",
+      "risk": "confirm",
+      "match": { "tools_any": ["hvs.switch.turn_off"], "tag_any": ["danger:gas"] },
+      "reason": "关闭燃气涉及用气安全，需确认现场情况",
+      "prompt": "该指令会关闭【{{targets}}】。请回复确认（confirm）才会下发。"
+    },
+    {
+      "id": "main_power_off",
+      "risk": "confirm",
+      "match": { "tools_any": ["hvs.switch.turn_off"], "tag_any": ["danger:main_power"] },
+      "reason": "切断总电源会让所有电器与网络断电，可能中断正在运行的设备",
+      "prompt": "该指令会切断【{{targets}}】，全屋电器会断电。请回复确认（confirm）才会下发。"
+    },
+    {
+      "id": "main_power_on",
+      "risk": "confirm",
+      "match": { "tools_any": ["hvs.switch.turn_on"], "tag_any": ["danger:main_power"] },
+      "reason": "总电源合闸前需确认线路与负载状态",
+      "prompt": "该指令会给【{{targets}}】合闸。请回复确认（confirm）才会下发。"
+    },
+    {
+      "id": "high_power_socket_on",
+      "risk": "confirm",
+      "match": { "tools_any": ["hvs.switch.turn_on"], "tag_any": ["danger:high_power"] },
+      "reason": "大功率插座上电会直接启动大功率负载，需确认无人靠近且线路允许",
+      "prompt": "该指令会给大功率负载【{{targets}}】上电。请回复确认（confirm）才会下发。"
+    },
+    {
+      "id": "high_power_socket_off",
+      "risk": "confirm",
+      "match": { "tools_any": ["hvs.switch.turn_off"], "tag_any": ["danger:high_power"] },
+      "reason": "断电前需确认大功率设备未在需要运行的过程中（如烘干、热水器）",
+      "prompt": "该指令会切断【{{targets}}】。请回复确认（confirm）才会下发。"
+    },
+    {
+      "id": "alarm_disarm",
+      "risk": "confirm",
+      "match": { "tools_any": ["hvs.alarm.disarm"] },
+      "reason": "安防撤防会让家庭防护失效，必须二次确认",
+      "prompt": "该指令会撤防【{{targets}}】，安防将失效。请回复确认（confirm）才会下发。"
+    },
+    {
+      "id": "alarm_arm",
+      "risk": "low",
+      "match": { "tools_any": ["hvs.alarm.arm_away", "hvs.alarm.arm_home"] },
+      "reason": "",
+      "prompt": ""
+    }
+  ],
+  "refusals": [
+    {
+      "id": "safety_gate_bypass",
+      "patterns": ["跳过确认", "不用确认", "不要确认", "关掉安全", "禁用安全", "绕过门禁", "关闭二次确认"],
+      "reason": "危险动作确认门禁是本项目的红线，不可通过对话关闭"
+    },
+    {
+      "id": "vendor_cloud_integration",
+      "patterns": ["米家官方", "小米云", "涂鸦云", "华为智慧生活", "美的美居", "厂商 API", "官方 API", "云端账号登录", "任意品牌"],
+      "reason": "本项目不接厂商云与个人无法获得的生态准入，只通过本地 Home Assistant 集成下发"
+    }
+  ]
+}

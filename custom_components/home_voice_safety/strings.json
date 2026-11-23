@@ -1,0 +1,73 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Home Voice Safety Layer",
+        "description": "Tick the devices that must ask for confirmation before they act. {count} candidate(s) were found. The reviewed catalog and policy are written to /config/home_voice_safety/ automatically; no path typing is needed.",
+        "data": {
+          "dangerous_entities": "Dangerous devices"
+        }
+      },
+      "tuning": {
+        "title": "Safety tuning",
+        "description": "Confirmation TTL and the dedup window are safety parameters, not convenience settings. A shorter dedup window makes repeated commands easier to dispatch twice.",
+        "data": {
+          "confirm_ttl_seconds": "Confirmation validity (seconds)",
+          "dedup_window_seconds": "Idempotency dedup window (seconds)",
+          "nlu_provider": "Intent parser: rule (offline deterministic) or llm (local Ollama)",
+          "real_entities": "Real device entity_ids, comma separated; the rest are labelled simulated"
+        }
+      }
+    },
+    "error": {
+      "catalog_missing": "The device catalog file does not exist, so dangerous actions cannot be classified.",
+      "catalog_invalid": "The device catalog format is invalid: expected {\"devices\": [{\"entity_id\": ..., \"tags\": [\"danger:...\"]}]}.",
+      "policy_invalid": "The risk policy could not be loaded or declares no dangerous classes.",
+      "no_dangerous_entities_selected": "Select at least one device that must require confirmation.",
+      "entities_not_candidates": "One of the selected entities is no longer a valid candidate; reload the form and try again."
+    },
+    "abort": {
+      "already_configured": "This integration is already configured for this Home Assistant instance.",
+      "no_dangerous_entities": "No lock, switch, cover, alarm, vacuum or climate entities were found.",
+      "catalog_missing": "The device catalog file does not exist.",
+      "catalog_invalid": "The device catalog format is invalid.",
+      "policy_invalid": "The risk policy could not be loaded.",
+      "invalid_import": "The imported configuration is invalid."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Home Voice Safety Layer options",
+        "description": "Changing the catalog, policy or parser reloads the integration. If confirmations are pending, the reload is deferred so their tokens are not lost.",
+        "data": {
+          "device_catalog": "Device catalog JSON path",
+          "policy_path": "Risk policy JSON path",
+          "confirm_ttl_seconds": "Confirmation validity (seconds)",
+          "dedup_window_seconds": "Idempotency dedup window (seconds)",
+          "nlu_provider": "Intent parser: rule or llm",
+          "real_entities": "Real device entity_ids, comma separated",
+          "remove_data": "Delete the audit database when this entry is removed (default: keep it for audit)"
+        }
+      }
+    },
+    "error": {
+      "catalog_missing": "The device catalog file does not exist, so dangerous actions cannot be classified.",
+      "catalog_invalid": "The device catalog format is invalid.",
+      "policy_invalid": "The risk policy could not be loaded or declares no dangerous classes."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "pending_actions": {
+        "name": "Pending confirmations"
+      },
+      "device_inventory": {
+        "name": "Controlled device inventory"
+      },
+      "decision_stats": {
+        "name": "Decision statistics"
+      }
+    }
+  }
+}

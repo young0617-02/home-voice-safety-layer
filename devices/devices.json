@@ -1,0 +1,163 @@
+{
+  "version": "1",
+  "note": "设备清单是本项目的唯一真源：devices/inventory.md 由 scripts/gen_inventory.py 从本文件生成，danger:* 标签与 provenance 只在安全评审后修改。",
+  "provenance_legend": {
+    "real": "真实 Wi-Fi/LAN 设备，经本地 Home Assistant 集成控制",
+    "simulated": "模拟实体（HA 内置 template/mock 或本项目的 SimulatedBackend），不接任何真实负载"
+  },
+  "domain_words": {
+    "_comment": "设备泛称词表：口语里的类指（灯/插座/锁…）靠它判定 hint；不在词表里的类指会被拒绝或要求澄清，不会顺手控制别的设备。",
+    "light": ["灯", "电灯", "灯具", "大灯", "主灯", "台灯", "灯带"],
+    "switch": ["插座", "开关", "电磁阀", "燃气", "总电源", "总闸", "空开", "加湿器", "电暖器", "取暖器", "水壶"],
+    "lock": ["锁", "门锁", "门", "大门"],
+    "climate": ["空调", "暖气"],
+    "cover": ["窗帘", "卷帘", "遮阳"],
+    "fan": ["风扇", "电扇", "净化器"],
+    "vacuum": ["扫地", "吸尘", "机器人"],
+    "media_player": ["电视", "音响", "播放器", "音量", "声音"],
+    "alarm_control_panel": ["安防", "报警", "布防", "撤防"]
+  },
+  "devices": [
+    {
+      "entity_id": "light.living_room_main",
+      "display_name": "客厅大灯",
+      "aliases": ["客厅大灯", "客厅主灯", "大灯", "主灯"],
+      "provenance": "simulated",
+      "state": "off",
+      "tags": ["room:客厅", "light:main"],
+      "supported_features": ["brightness"]
+    },
+    {
+      "entity_id": "light.living_room_strip",
+      "display_name": "客厅灯带",
+      "aliases": ["客厅灯带", "灯带"],
+      "provenance": "simulated",
+      "state": "off",
+      "tags": ["room:客厅", "light:strip"]
+    },
+    {
+      "entity_id": "light.bedroom_main",
+      "display_name": "卧室主灯",
+      "aliases": ["卧室主灯", "卧室灯"],
+      "provenance": "simulated",
+      "state": "on",
+      "tags": ["room:卧室", "light:main"]
+    },
+    {
+      "entity_id": "light.study_desk",
+      "display_name": "书房台灯",
+      "aliases": ["书房台灯", "台灯"],
+      "provenance": "simulated",
+      "state": "off",
+      "tags": ["room:书房", "light:desk"]
+    },
+    {
+      "entity_id": "switch.heater_socket",
+      "display_name": "客厅电暖器插座",
+      "aliases": ["电暖器", "取暖器", "客厅插座"],
+      "provenance": "simulated",
+      "state": "off",
+      "tags": ["room:客厅", "danger:high_power"]
+    },
+    {
+      "entity_id": "switch.kettle_socket",
+      "display_name": "厨房电热水壶插座",
+      "aliases": ["电热水壶", "水壶", "烧水壶"],
+      "provenance": "simulated",
+      "state": "off",
+      "tags": ["room:厨房", "danger:high_power"]
+    },
+    {
+      "entity_id": "switch.humidifier",
+      "display_name": "卧室加湿器",
+      "aliases": ["加湿器"],
+      "provenance": "simulated",
+      "state": "off",
+      "tags": ["room:卧室"]
+    },
+    {
+      "entity_id": "switch.gas_valve",
+      "display_name": "厨房燃气电磁阀",
+      "aliases": ["燃气阀", "燃气", "电磁阀", "灶具"],
+      "provenance": "simulated",
+      "state": "off",
+      "tags": ["room:厨房", "danger:gas"]
+    },
+    {
+      "entity_id": "switch.main_breaker",
+      "display_name": "入户总电源空开",
+      "aliases": ["总电源", "总闸", "全屋电源"],
+      "provenance": "simulated",
+      "state": "on",
+      "tags": ["danger:main_power"]
+    },
+    {
+      "entity_id": "lock.front_door",
+      "display_name": "入户门锁",
+      "aliases": ["门锁", "入户门", "大门锁"],
+      "provenance": "simulated",
+      "state": "locked",
+      "tags": ["danger:security", "room:玄关"]
+    },
+    {
+      "entity_id": "alarm_control_panel.home",
+      "display_name": "家庭安防主机",
+      "aliases": ["安防", "报警器", "布防", "撤防"],
+      "provenance": "simulated",
+      "state": "armed_away",
+      "tags": ["danger:security"]
+    },
+    {
+      "entity_id": "cover.living_room_curtain",
+      "display_name": "客厅窗帘",
+      "aliases": ["窗帘", "客厅窗帘"],
+      "provenance": "simulated",
+      "state": "closed",
+      "tags": ["room:客厅"]
+    },
+    {
+      "entity_id": "climate.living_room_ac",
+      "display_name": "客厅空调",
+      "aliases": ["空调", "客厅空调"],
+      "provenance": "simulated",
+      "state": "off",
+      "tags": ["room:客厅"],
+      "supported_features": ["target_temperature", "hvac_mode"]
+    },
+    {
+      "entity_id": "climate.bedroom_ac",
+      "display_name": "卧室空调",
+      "aliases": ["卧室空调"],
+      "provenance": "simulated",
+      "state": "off",
+      "tags": ["room:卧室"],
+      "supported_features": ["target_temperature"]
+    },
+    {
+      "entity_id": "fan.bedroom_fan",
+      "display_name": "卧室风扇",
+      "aliases": ["风扇", "电扇"],
+      "provenance": "simulated",
+      "state": "off",
+      "tags": ["room:卧室"],
+      "supported_features": ["percentage"]
+    },
+    {
+      "entity_id": "vacuum.robot",
+      "display_name": "扫地机器人",
+      "aliases": ["扫地机", "机器人", "吸尘器"],
+      "provenance": "simulated",
+      "state": "idle",
+      "tags": []
+    },
+    {
+      "entity_id": "media_player.living_room_tv",
+      "display_name": "客厅电视",
+      "aliases": ["电视", "客厅电视"],
+      "provenance": "simulated",
+      "state": "on",
+      "tags": ["room:客厅"],
+      "supported_features": ["volume"]
+    }
+  ]
+}

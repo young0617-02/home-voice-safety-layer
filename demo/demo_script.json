@@ -1,0 +1,78 @@
+{
+  "title": "无障碍场景演示：王奶奶的一天（决策与安全层）",
+  "session_id": "demo",
+  "steps": [
+    {
+      "say": "打开客厅大灯",
+      "expect_kind": "executed",
+      "note": "单设备，低风险，直接执行并回读"
+    },
+    {
+      "say": "把客厅空调调到二十六度",
+      "expect_kind": "executed",
+      "note": "带参数：温度 26℃"
+    },
+    {
+      "say": "关掉客厅大灯，然后打开卧室主灯",
+      "expect_kind": "executed",
+      "note": "多步编排：起夜动线，两步都是低风险"
+    },
+    {
+      "say": "打开电暖器",
+      "expect_parked": "awaiting_confirmation",
+      "confirm": true,
+      "expect_kind": "executed",
+      "note": "大功率插座上电 = 危险动作，未确认前一条都不下发"
+    },
+    {
+      "say": "打开燃气阀",
+      "expect_kind": "rejected",
+      "note": "燃气开阀直接拒绝，请人工现场操作（比确认更严）"
+    },
+    {
+      "say": "关掉燃气阀",
+      "expect_parked": "awaiting_confirmation",
+      "confirm": true,
+      "expect_kind": "executed",
+      "note": "关阀是安全方向，但必须二次确认"
+    },
+    {
+      "say": "解锁入户门锁",
+      "expect_parked": "awaiting_confirmation",
+      "confirm": true,
+      "expect_kind": "executed",
+      "note": "开门锁 = 入户安全动作"
+    },
+    {
+      "say": "撤防",
+      "expect_kind": "awaiting_confirmation",
+      "note": "安防撤防挂起等待确认，此时未下发任何指令"
+    },
+    {
+      "say": "确认",
+      "expect_kind": "executed",
+      "note": "口头确认即可释放上一条待确认动作（无障碍：不用伸手点屏幕）"
+    },
+    {
+      "say": "关闭卧室主灯",
+      "expect_kind": "executed",
+      "note": "幂等起点"
+    },
+    {
+      "say": "关闭卧室主灯",
+      "expect_kind": "deduplicated",
+      "max_dispatch": 0,
+      "note": "同一意图在去重窗口内重复说，只执行一次"
+    },
+    {
+      "say": "打开所有插座",
+      "expect_kind": "rejected",
+      "note": "批量里混着燃气电磁阀 = 直接拒绝，整批不下发"
+    },
+    {
+      "say": "布防",
+      "expect_kind": "executed",
+      "note": "反向验证：安全动作不得被过度拦截"
+    }
+  ]
+}

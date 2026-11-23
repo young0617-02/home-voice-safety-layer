@@ -1,0 +1,73 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "家庭语音安全层",
+        "description": "请勾选必须先确认才能动作的危险设备。已识别 {count} 个候选实体；评审清单与风险策略会自动写入 /config/home_voice_safety/，不需要手填路径。",
+        "data": {
+          "dangerous_entities": "危险设备"
+        }
+      },
+      "tuning": {
+        "title": "安全参数",
+        "description": "确认有效期与去重窗口是安全参数，不是体验参数：调小去重窗口会让重复指令更容易重复下发。",
+        "data": {
+          "confirm_ttl_seconds": "确认有效期（秒）",
+          "dedup_window_seconds": "幂等去重窗口（秒）",
+          "nlu_provider": "意图解析：rule（离线确定性）或 llm（本地 Ollama）",
+          "real_entities": "真实设备 entity_id，逗号分隔；其余标注为模拟"
+        }
+      }
+    },
+    "error": {
+      "catalog_missing": "设备清单文件不存在，危险动作将无法判定。",
+      "catalog_invalid": "设备清单格式不正确：需要 {\"devices\": [{\"entity_id\": ..., \"tags\": [\"danger:...\"]}]}。",
+      "policy_invalid": "风险策略加载失败或没有声明任何危险类别。",
+      "no_dangerous_entities_selected": "请至少勾选一个必须二次确认的危险设备。",
+      "entities_not_candidates": "所选实体已不是有效候选，请刷新表单后重试。"
+    },
+    "abort": {
+      "already_configured": "该 Home Assistant 实例已配置此集成。",
+      "no_dangerous_entities": "未发现 lock、switch、cover、alarm_control_panel、vacuum 或 climate 候选实体。",
+      "catalog_missing": "设备清单文件不存在。",
+      "catalog_invalid": "设备清单格式不正确。",
+      "policy_invalid": "风险策略加载失败。",
+      "invalid_import": "导入的配置无效。"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "家庭语音安全层选项",
+        "description": "修改清单、策略或解析器会重载集成。若存在待确认动作，会暂缓重载以免确认令牌丢失。",
+        "data": {
+          "device_catalog": "设备清单 JSON 路径",
+          "policy_path": "风险策略 JSON 路径",
+          "confirm_ttl_seconds": "确认有效期（秒）",
+          "dedup_window_seconds": "幂等去重窗口（秒）",
+          "nlu_provider": "意图解析：rule 或 llm",
+          "real_entities": "真实设备 entity_id，逗号分隔",
+          "remove_data": "卸载此条目时删除审计数据库（默认保留以便审计）"
+        }
+      }
+    },
+    "error": {
+      "catalog_missing": "设备清单文件不存在，危险动作将无法判定。",
+      "catalog_invalid": "设备清单格式不正确。",
+      "policy_invalid": "风险策略加载失败或没有声明任何危险类别。"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "pending_actions": {
+        "name": "待确认动作"
+      },
+      "device_inventory": {
+        "name": "受控设备清点"
+      },
+      "decision_stats": {
+        "name": "决策统计"
+      }
+    }
+  }
+}

@@ -1,0 +1,78 @@
+{
+  "settings": {
+    "audio": "<private-audio>.m4a",
+    "runs": 1,
+    "provider": "rule",
+    "backend": "simulated",
+    "entities": 17
+  },
+  "rows": [
+    {
+      "run": 1,
+      "asr": {
+        "audio_seconds": 4879.595,
+        "load_seconds": 5.223,
+        "decode_seconds": 506.758,
+        "process_wall_seconds": 512.371,
+        "decode_rtf": 0.1039,
+        "end_to_end_rtf": 0.105,
+        "device": "cuda",
+        "execution": "subprocess",
+        "segments": 1509,
+        "text": "[redacted]"
+      },
+      "decision": {
+        "kind": "rejected",
+        "risk": "low",
+        "dispatch": 0,
+        "timings_ms": {
+          "total": 0.479
+        }
+      },
+      "tts": {
+        "provider": "windows-sapi",
+        "wall_seconds": 0.541,
+        "bytes": 467540
+      }
+    }
+  ],
+  "aggregates": {
+    "asr.load_seconds": {
+      "n": 1,
+      "mean": 5.223,
+      "min": 5.223,
+      "max": 5.223
+    },
+    "asr.decode_seconds": {
+      "n": 1,
+      "mean": 506.758,
+      "min": 506.758,
+      "max": 506.758
+    },
+    "asr.end_to_end_seconds": {
+      "n": 1,
+      "mean": 512.371,
+      "min": 512.371,
+      "max": 512.371
+    },
+    "asr.decode_rtf": {
+      "n": 1,
+      "mean": 0.104,
+      "min": 0.104,
+      "max": 0.104
+    },
+    "decision_total.ms": {
+      "n": 1,
+      "mean": 0.479,
+      "min": 0.479,
+      "max": 0.479
+    },
+    "tts.seconds": {
+      "n": 1,
+      "mean": 0.541,
+      "min": 0.541,
+      "max": 0.541
+    }
+  },
+  "口径声明": "本文件全部数字为**实测值**（模拟后端 + 规则解析；ASR 为本机 GPU）；接真实设备或云端 LLM 后需重新测量。字错率(CER)：**合成语音（已知文本）已实测**，见 `reports/ASR-CER.md`；**真人/家庭噪声无人工对齐参照，未实测**。"
+}

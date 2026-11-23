@@ -1,0 +1,16 @@
+order_id,household_id,plan,amount,currency,created_at,paid_at,payment_method,payment_ref,refund_status,refund_requested_at,refunded_at,refund_amount,consent_version,note,synthetic,cohort
+"SYN-A-0001","SYN-P01","A","99","CNY","2026-11-10T20:00:00+08:00","2026-11-10T20:05:00+08:00","wechat","SYN-WX-0001","none","","","0","v0.1","合成示例-A档-未退款-内测户","1","g3"
+"SYN-B-0001","SYN-P02","B","199","CNY","2026-11-11T19:30:00+08:00","2026-11-11T19:36:00+08:00","alipay","SYN-ALI-0002","requested","2026-11-13T10:00:00+08:00","","0","v0.1","合成示例-B档-退款处理中-普通预订户","1","g2"
+"SYN-C-0001","SYN-P03","C","299","CNY","2026-11-12T21:00:00+08:00","2026-11-12T21:02:00+08:00","bank_transfer","SYN-BANK-0003","refunded","2026-11-15T09:00:00+08:00","2026-11-17T14:00:00+08:00","299","v0.1","合成示例-C档-已全额退款-内测户","1","g3"
+# ===== 以下为说明，正式导入前请删除本段（从本行起到文件末尾） =====
+# 1) 本文件前 3 行数据全部为合成示例（synthetic=1），仅用于验证导入格式；正式使用前删除或替换为真实订单。
+# 2) synthetic=1 的订单不得计入 G2 判据（≥10 户完成真实预付、退款率 ≤20%）；统计前先过滤 synthetic=0。
+# 3) 值域：plan ∈ A/B/C；amount 必须与档位一致（A=99、B=199、C=299）；currency=CNY。
+# 4) cohort ∈ g2/g3，可为空（空按 g2）：g2=普通 G2 预订户；g3=G3 内测户（10 户 cohort）。G4 付费转化只统计 cohort=g3。
+#    旧 16 列模板没有 cohort 列时，导入后全部按 g2 处理，不会被误算成内测转化。
+# 5) payment_method ∈ wechat/alipay/bank_transfer；refund_status ∈ none/requested/refunded/rejected。
+# 6) 时间格式 ISO 8601 含时区（YYYY-MM-DDTHH:MM:SS+08:00）；未发生的时间留空字符串；未退款 refund_amount 填 0。
+# 7) household_id 正式值用 P01–P20，与 G1 名单一致；本文件用 SYN-P01 等前缀，避免与真实户号混淆。
+# 8) 隐私：不写姓名、身份证、银行卡号、CVV、家庭住址、门锁序列号；payment_ref 只记流水号/回单号。
+# 9) 表头必须保持第一行；本段 # 注释在导入前删除，否则会变成脏数据行（脚本会跳过 # 行，但正式台账不应依赖此兼容）。
+# 10) 原始支付凭证（截图/回单）不放进本文件，另存本地加密目录，保留 90 天。

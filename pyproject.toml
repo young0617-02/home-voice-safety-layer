@@ -1,0 +1,129 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "home-voice-safety-layer"
+version = "0.2.0"
+description = "本地优先智能家居语音助手的决策与安全层（危险动作确认门禁 + 幂等 + 可审计评测）"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.5",
+    "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+# 决策层与评测：pip install -e ".[dev]"
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6",
+    "python-dotenv>=1.0",
+    "voluptuous>=0.13",
+    "mypy>=2.4.1",
+]
+# 可选：真机 HA 生命周期测试。pytest-homeassistant-custom-component 会锁一个
+# 特定 Home Assistant 版本；该版本在当前索引不可解析时不要写死，按目标 HA
+# 版本手动安装：
+#   uv pip install pytest-homeassistant-custom-component
+# 未安装时 tests/test_config_flow.py 使用轻量 stubs，不跳过。
+# 仅本机 HTTP 接口（可选项，CLI 已覆盖全部功能）
+serve = [
+    "fastapi>=0.110",
+    "uvicorn>=0.29",
+]
+# 本地 ASR（F-004）。模型权重请放到 D 盘并在 .env 里指定 ASR_MODEL_DIR。
+# av 需 >=11，否则 faster-whisper 的 metadata_errors 参数会在转写时崩溃。
+# opencc 用于把 ASR 输出统一转简体（可选；未装则原样返回）。
+# pypinyin 用于 catalog-aware 同音纠错（可选；未装则跳过）。
+asr = [
+    "faster-whisper>=1.0",
+    "av>=11,<14",
+    "opencc-python-reimplemented>=0.1.7",
+    "pypinyin>=0.50",
+]
+
+[project.scripts]
+hvsl = "hvsl.cli:main"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["hvsl*", "pipeline*"]
+# `custom_components/.../vendor/` is a runtime copy for HACS installs, not a
+# second source package: never discover it as an installable package.
+exclude = ["custom_components*", "vendor*"]
+
+[tool.setuptools.package-data]
+hvsl = ["policy/*.json"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-q --no-header"
+
+[dependency-groups]
+# CI: `uv sync --dev`；只含轻量测试/静态检查，不拉 HA、ASR、uvicorn 等可选依赖。
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6",
+    "python-dotenv>=1.0",
+    "voluptuous>=0.13",
+    "mypy>=2.4.1",
+]
+
+[tool.ruff]
+target-version = "py311"
+exclude = [
+    ".venv",
+    ".git",
+    ".codeartsdoer",
+    "build",
+    "dist",
+    "var",
+    "custom_components/home_voice_safety/vendor",
+]
+
+[tool.ruff.lint]
+# P1-4 baseline：下列规则在既有代码上已有告警（不改历史代码），CI 以这些规则
+# 作为既有基线不阻塞；其他规则继续拦截新增问题。
+ignore = [
+    "BLE001",
+    "C408",
+    "F401",
+    "F841",
+    "I001",
+    "ISC004",
+    "PLW1510",
+    "RUF012",
+    "RUF022",
+    "RUF046",
+    "RUF059",
+    "RUF100",
+    "S110",
+    "SIM102",
+    "UP006",
+    "UP035",
+    "UP037",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# 目前没有临时豁免；如确需新增，请写明原因与移除条件。
+
+
+[tool.mypy]
+# Baseline only: `custom_components/.../vendor/` is a generated copy of hvsl/pipeline
+# and would double-report every error. It is not an installable source tree.
+exclude = ["^custom_components/home_voice_safety/vendor/"]
+# 可选依赖/宿主库没有 py.typed 或未安装 stub：不影响运行时，单独忽略。
+[[tool.mypy.overrides]]
+module = [
+    "homeassistant.*",
+    "faster_whisper.*",
+    "fastapi.*",
+    "uvicorn.*",
+    "opencc.*",
+]
+ignore_missing_imports = true

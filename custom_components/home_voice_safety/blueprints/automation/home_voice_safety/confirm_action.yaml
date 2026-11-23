@@ -1,0 +1,58 @@
+blueprint:
+  name: Home Voice Safety：用通知或物理按键确认危险动作
+  description: >
+    把手机通知动作（mobile_app_notification_action）或物理按键事件映射到
+    home_voice_safety.confirm_action / cancel_action。
+    通知动作字符串格式为 HVS_CONFIRM:<token>:<session_id> 或 HVS_CANCEL:<token>:<session_id>
+    （与集成发出的确认通知一致；物理按键只需在事件 data.action 里给出同样的字符串）。
+    本 blueprint 只调用集成的确认/取消服务，绝不会自行下发设备指令。
+  domain: automation
+  input:
+    physical_event_type:
+      name: 物理按键事件类型
+      description: 例如 zha_event、deconz_event、esphome.button_pressed。
+      default: zha_event
+      selector:
+        text:
+    confirm_prefix:
+      name: 确认动作前缀
+      default: "HVS_CONFIRM:"
+      selector:
+        text:
+    cancel_prefix:
+      name: 取消动作前缀
+      default: "HVS_CANCEL:"
+      selector:
+        text:
+trigger:
+  - platform: event
+    event_type: mobile_app_notification_action
+  - platform: event
+    event_type: !input physical_event_type
+variables:
+  confirm_prefix: !input confirm_prefix
+  cancel_prefix: !input cancel_prefix
+  raw_action: "{{ trigger.event.data.action | default('') }}"
+  action_parts: "{{ raw_action.split(':') }}"
+  action_token: "{{ action_parts[1] if action_parts | length > 1 else '' }}"
+  action_session: "{{ action_parts[2] if action_parts | length > 2 else 'default' }}"
+action:
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ raw_action.startswith(confirm_prefix) }}"
+        sequence:
+          - service: home_voice_safety.confirm_action
+            data:
+              token: "{{ action_token }}"
+              session_id: "{{ action_session }}"
+      - conditions:
+          - condition: template
+            value_template: "{{ raw_action.startswith(cancel_prefix) }}"
+        sequence:
+          - service: home_voice_safety.cancel_action
+            data:
+              token: "{{ action_token }}"
+              session_id: "{{ action_session }}"
+mode: queued
+max: 10

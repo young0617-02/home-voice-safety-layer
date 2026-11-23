@@ -1,0 +1,17 @@
+{
+  "domain": "home_voice_safety",
+  "name": "Home Voice Safety Layer",
+  "codeowners": ["@young0617-02"],
+  "config_flow": true,
+  "documentation": "https://github.com/young0617-02/home-voice-safety-layer",
+  "integration_type": "hub",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/young0617-02/home-voice-safety-layer/issues",
+  "loggers": ["custom_components.home_voice_safety"],
+  "quality_scale": "bronze",
+  "requirements": [
+    "pydantic>=2.5",
+    "httpx>=0.27"
+  ],
+  "version": "0.2.0"
+}
