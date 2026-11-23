@@ -1,80 +1,24 @@
 # home-voice-safety-layer · 本地优先智能家居语音助手的**决策与安全层**
 
 > 一句话：不做唤醒词、不做硬件、不碰厂商云，只做
-> **本地语音 → 意图 → 带命名空间的工具调用 → 危险动作确认门禁 → 幂等下发 → 全程留痕**
-> 这条决策链，并用 68 条分级评测集与 16 条变异测试证明它可信。
+> **本地语音 → 意图 → 带命名空间的工具调用 → 危险动作确认门禁 → 幂等下发 → 全程留痕** 这条决策链，
+> 并用 68 条分级评测集与 16 条变异测试证明它可信。
 >
-> 定位：**开源作品集**，单人自主实现。面试/评审可以直接 clone 下来自己跑，不需要任何家庭设备。
+> 定位：单人自主实现的开源作品集。面试/评审可以直接 clone 下来自己跑，不需要任何家庭设备、麦克风或 GPU。
 
 ---
 
-## 1. 30 秒跑起来
+## 1. 项目简介
 
-```bash
-git clone <你的仓库地址>
-cd home-voice-safety-layer
-uv sync --dev                  # 默认形态：CLI + 模拟后端 + 测试
-# 可选：真实本地 ASR（faster-whisper + av）
-uv sync --extra asr
+本项目只占一层位置：**在"听懂一句话"和"设备真的动起来"之间**，负责判断该不该动、动之前要不要问人、
+重复说一遍会不会动两次、以及事后能不能查。
 
-python -m pytest -q            # 全部测试（含危险动作/幂等红线用例）
-python evals/judge.py -v       # 68 条分级评测 + 拦截率/误下发/分段延迟
-python scripts/mutate.py       # 注入 16 个缺陷，验证测试套件真的会响
-python -m hvsl.cli doctor      # 环境自检（后端/工具/危险类别/ASR/TTS）
-python -m hvsl.cli demo        # 无障碍场景演示脚本，13 步，退出码 0 = 全部符合预期
-python -m hvsl.cli chat        # 自己说一句：「解锁入户门锁」→ 看它拒绝直接执行
-```
-
-> Home Assistant 真机冒烟：2026-11-03 已在 Docker Hub `homeassistant/home-assistant:stable` 上跑出 **9/9 + 附加 3/3 + 蓝图 3/3 + soak 1/1 PASS**；`2025.1` 同级全 PASS，`2025.2.4` 同级全 PASS；2024.6 依赖不兼容（自带 pydantic 1.10.15），2025.3+ 未测。
-> 证据见 [`docs/HA真机冒烟结果-v0.1.md`](docs/HA真机冒烟结果-v0.1.md)、[`docs/HA多版本矩阵-v0.1.md`](docs/HA多版本矩阵-v0.1.md)。ASR 合成语音 2/2 PASS；公开真人 4 条 small 可识别但有错字（`opencc` 繁转简 + `pypinyin` target 级同音纠错已接入、错字仍在），medium 已取得并试跑但错字仍在（观察/观光旅游已修正，邮局/邮箱/蜿蜒/白皑皑仍错，未做人工对齐 CER）；仍未覆盖真实设备、notify 真投递（HA 2026 legacy `file`/`rest` 均不可用，仅 `mobile_app` 未验证）。
-
-**不需要 Home Assistant，不需要麦克风，不需要 GPU**：默认后端是内置模拟实体，
-默认解析器是离线确定性规则。装好 HA / faster-whisper 之后，改 `.env` 即切到真实链路，
-决策层代码一行不用改。
-
----
-
-## 2. 为什么只做这一层
-
-大厂助手的取向是"尽量把动作执行掉"；而"哪些动作不该被执行"这类门禁会让体验变差，
-所以没人做重。这一层恰好是**单人可占、且开源可验证**的位置：
-
-| 别的项目给的 | 这个项目给的 |
+| 别的项目常见的做法 | 本项目给出的 |
 | --- | --- |
 | 接了某某生态 | 只走本地 Home Assistant 社区集成，明确不承诺厂商云接入 |
 | 识别率/延迟的单个漂亮数字 | 分段实测 + 三态口径（实测 / 设计值 / 未实测） |
 | "支持很多设备" | 17 个受控实体逐台标注真实/模拟，危险实体一律保持模拟 |
-| demo 视频 | `python -m hvsl.cli demo` 可盲跑，输出与预期逐条比对 |
-
----
-
-## 3. 模块划分
-
-```
-home-voice-safety-layer/
-├── hvsl/                       # 核心可安装包（不依赖 HA，不依赖网络）
-│   ├── models.py               # 数据结构：DeviceEntity / PlannedCall / Intent /
-│   │                           #   ResolvedStep / PendingAction / Decision / AuditRecord
-│   ├── tools.py                # F-006 工具注册表：命名空间前缀 + Pydantic 参数模型 → JSON Schema
-│   ├── risk.py                 # F-007 风险判定：声明式策略 → low / confirm / deny
-│   ├── policy/risk_policy.json #   危险动作白名单 + 拒绝话题（改这里 = 改安全边界，需评审）
-│   ├── resolver.py             # 中文设备词 → entity_id（歧义/无匹配是显式结果，不是猜）
-│   ├── gate.py                 # F-007 确认门禁：待确认动作、TTL、单用途令牌、会话绑定
-│   ├── idempotency.py          # F-008 幂等：SQLite 事务内抢锁，结果未知一律不重发
-│   ├── audit.py + store.py     # F-009 留痕：先写后回写、按 trace 反查
-│   ├── backends/               # F-003 设备抽象：simulated / home_assistant(REST) / HA 内本地
-│   ├── engine.py               # 决策链编排（本项目的全部论点在这一个文件）
-│   ├── app.py / cli.py / server.py / config.py
-├── pipeline/                   # 语音载体：asr(faster-whisper 本地) / nlu(规则+LLM) / tts(本地)
-├── custom_components/home_voice_safety/   # F-002 HA 集成（safety.py/audit.py 从核心包再导出）
-├── devices/devices.json        # 已评审设备清单（danger:* 标签唯一来源）
-├── devices/inventory.md        #   ↑ 由 scripts/gen_inventory.py 生成，禁止手改
-├── evals/                      # F-011 分级评测集 + F-013 判分器
-├── tests/                      # A1–A13 红线用例 + 契约测试
-├── scripts/                    # gen_inventory / mutate / measure_latency / write_reports
-├── demo/                       # F-014 无障碍场景脚本（可盲跑）
-└── reports/                    # 实测产物（JSON 原始 + Markdown 渲染）
-```
+| demo 视频 | `python -m hvsl.cli demo` 可盲跑，13 步输出与预期逐条比对 |
 
 数据流（一句话）：
 
@@ -86,126 +30,282 @@ home-voice-safety-layer/
                            └─ deny     → 拒绝 + 留痕
 ```
 
-### 与方案目录树的差异（有意为之，写明在这）
+---
 
-方案把 `safety.py` / `audit.py` 放在 `custom_components/<domain>/` 下。本项目把它们的**实现**
-放进可 pip 安装的 `hvsl/` 包，集成侧只做再导出与 HA 适配。原因：HA 未安装时也要能跑测试、
-跑评测、跑变异测试——红线证据不能依赖一个 1.5GB 的镜像。`custom_components/home_voice_safety/safety.py`
-与 `audit.py` 仍然存在，且由 `tests/test_integration_backend.py` 断言它们与核心包是同一对象。
+## 2. 核心功能
+
+| 能力 | 实现要点 | 代码位置 |
+| --- | --- | --- |
+| 意图 → 工具调用 | 28 个工具，全部带 `hvs.` 命名空间前缀；参数由 Pydantic 模型约束并生成 JSON Schema（`additionalProperties=false`） | `hvsl/tools.py` |
+| 设备寻址 | 中文设备词 → `entity_id`；歧义与无匹配都是**显式结果**，不猜 | `hvsl/resolver.py` |
+| 风险定级 | 声明式策略 → `low` / `confirm` / `deny`；8 个危险类别 + 2 条拒绝话题 | `hvsl/risk.py`、`hvsl/policy/risk_policy.json` |
+| 危险动作确认门禁 | 命中 `confirm` 时**整条计划**挂起，单用途令牌 + TTL + 会话绑定；确认后按计划顺序一次性下发 | `hvsl/gate.py`、`hvsl/engine.py` |
+| 幂等下发 | 键 = `session+tool+args+targets`；SQLite 事务内抢锁；结果未知一律不重发 | `hvsl/idempotency.py` |
+| 可审计 | 先写后回写，按 `trace_id` 反查；默认脱敏用户原话 | `hvsl/audit.py`、`hvsl/store.py` |
+| 引擎层护栏 | 定时类请求直接拒绝；没说"都/全部"就钳掉批量猜测；类指词必须命中已评审词表 | `hvsl/guards.py` |
+| 语音载体 | 本地 ASR（faster-whisper）、规则/LLM 解析、本地 TTS | `pipeline/asr.py`、`pipeline/nlu.py`、`pipeline/tts.py` |
+| Home Assistant 集成 | 6 个服务 + 3 个只读 sensor + 确认事件 + 蓝图 | `custom_components/home_voice_safety/` |
+| 评测与测试 | 68 条分级评测集、16 条变异测试、报告由 JSON 渲染且与 md 字节比对 | `evals/`、`tests/`、`reports/` |
 
 ---
 
-## 4. 输入输出与接口定义
+## 3. 安装与运行
 
-### 4.1 决策链入口
+### 3.1 环境要求
 
-| 入口 | 输入 | 输出 |
-| --- | --- | --- |
-| `engine.handle(text, session_id=)` | 一句话 | `Decision` |
-| `engine.confirm(token=None, session_id=)` | 确认令牌（省略=该会话恰好一条待确认） | `Decision` |
-| `engine.cancel(token=None, session_id=)` | 取消 | `Decision` |
-| `engine.trace(trace_id)` | 一次请求的 trace | `list[AuditRecord]` |
+- Python **>= 3.11**（`pyproject.toml` 的 `requires-python`）。
+- 包管理器推荐 [uv](https://docs.astral.sh/uv/)；`pip install -e .` 亦可。
+- 默认路径不需要 Home Assistant、不需要麦克风、不需要 GPU：后端是内置模拟实体，解析器是离线确定性规则。
+- Windows / macOS / Linux 均可运行；HA 真机验证只在 Docker（Linux 容器）里做过。
 
-`Decision` 关键字段：`kind`（`executed` / `awaiting_confirmation` / `clarification_required` /
-`rejected` / `deduplicated` / `cancelled` / `partial`）、`steps[].risk_level`、
-`steps[].risk_class`、`confirmation_token`、`dispatch_count`、`outcomes[]`、
-`timings_ms{nlu,dispatch,total}`、`trace_id`。
-
-### 4.2 工具层（28 个，全部带命名空间前缀）
-
-工具名形如 `hvs.light.turn_on`、`hvs.lock.unlock`、`hvs.alarm.disarm`，
-注册时**强制**前缀校验（HA 2026.9 起强制集成前缀，这里提前做到位）：
+### 3.2 安装
 
 ```bash
-python -m hvsl.cli tools     # 打印全部工具 + JSON Schema（additionalProperties=false）
+git clone https://github.com/young0617-02/home-voice-safety-layer.git
+cd home-voice-safety-layer
+
+uv sync --dev                  # 默认形态：CLI + 模拟后端 + 测试 + ruff/mypy
+uv sync --extra asr            # 可选：本地 ASR（faster-whisper + av + opencc + pypinyin）
+uv sync --extra serve          # 可选：本机 HTTP 接口（fastapi + uvicorn）
 ```
 
-参数由 Pydantic 模型约束并生成 JSON Schema：`entity_ids` 必填非空、`brightness_pct∈[1,100]`、
-`temperature_c∈[5,40]`、`volume_level∈[0,100]`、`delta_pct∈[-50,50]`，多余字段一律拒绝。
-
-### 4.3 HTTP 接口（仅本机）
+pip 备选（`[dev]` 见 `pyproject.toml` 的 optional-dependencies）：
 
 ```bash
-python -m hvsl.cli serve            # 127.0.0.1:8777，绑定非本机地址会被拒绝启动
-POST /v1/utterance {"text": "...", "session_id": "..."}
-POST /v1/confirm   {"token": "...", "session_id": "..."}
-POST /v1/cancel    {"token": "...", "session_id": "..."}
-GET  /v1/devices /v1/pending /v1/audit?trace_id=... /v1/health
+pip install -e ".[dev]"
 ```
 
-契约核心是与框架无关的 `hvsl.server.handle_request`，测试直接打它（FastAPI 只是薄适配器）。
+安装后可用 `hvsl` 入口（`pyproject.toml` 的 `[project.scripts]`），等价于 `python -m hvsl.cli`：
 
-### 4.4 HA 集成服务
+```bash
+uv run hvsl doctor
+```
 
-`home_voice_safety.handle_utterance` / `.confirm_action` / `.cancel_action` / `.list_pending`，
-每次决策通过 `home_voice_safety_decision` 事件广播；三个只读 sensor 把
-「待确认动作数 / 真实与模拟设备清点 / 决策统计」显示在 HA 界面里。
+### 3.3 三条运行路径
 
----
-
-## 5. 关键约束（安全语义）
-
-| 约束 | 具体语义 | 代码位置 | 证据 |
-| --- | --- | --- | --- |
-| **危险动作必须二次确认** | 8 个危险类别命中 `confirm` 时，**整条计划**挂起，一个实体都不下发；确认后一次性按计划顺序下发 | `hvsl/gate.py`、`hvsl/engine.py::_park` | A1：`tests/test_safety_gate.py` 逐类别遍历 + 评测 27 条危险用例 |
-| 燃气开阀 = 直接拒绝 | 不是"确认后放行"，而是拒绝并提示人工现场操作；批量目标里混进燃气阀时**整批拒绝** | `hvsl/policy/risk_policy.json` | `tests/test_risk_policy.py::test_batch_target_including_the_gas_valve_is_refused_entirely` |
-| 确认令牌单用途、TTL、会话绑定 | 超时作废（作废≠补发）；同一令牌第二次确认被拒；跨会话确认被拒；会话内多条待确认时裸确认→要求指认 | `hvsl/gate.py::take` | `tests/test_safety_gate.py` |
-| **幂等：重复意图只下发一次** | 键 = `session+tool+args+targets`；窗口内重复→抑制；下发前先占锁，**结果未知一律不重发**；只有"证明没送达设备"的失败才释放键 | `hvsl/idempotency.py` | A2：`tests/test_idempotency.py`（含 3 线程并发） |
-| 风险判定不采信设备自报 | `danger:*` 标签只读本地已评审清单；HA 设备在状态里自称安全无效 | `hvsl/backends/home_assistant.py::build_entity` | `tests/test_ha_backend.py::test_a_device_cannot_talk_its_way_out_of_the_danger_list` |
-| 清单缺失即拒绝启动（fail closed） | HA 内后端读不到已评审设备清单时直接拒绝初始化，而不是"把所有设备当安全设备" | `custom_components/.../backend.py` | `tests/test_integration_backend.py` |
-| **护栏与解析器无关**（三件事由引擎判定，模型说了不算） | ① 句子里出现"明天/定时/半小时后"等 → 直接拒绝，不会把"明天的事"当场执行掉；② 没说"都/全部/所有"就取消模型给的批量猜测（`all=true` 被钳回逐个指认）；③ 类指词必须能在设备词表里 hint 到本域设备，"把窗户打开"不会顺手去拉窗帘 | `hvsl/guards.py`、`hvsl/resolver.py::_hints_any_name`、`devices/devices.json` 的 `domain_words` | `tests/test_guards.py`（用一个"假装很确定"的假 LLM 计划验证钳制生效）；变异 M11–M16 专门打这几条 |
-| 设备词表是评审对象 | `domain_words` 与 `danger:*` 同在清单里：加一个类指词等于扩大可控范围，要走评审 | `devices/devices.json` | `tests/test_guards.py::test_domain_words_come_from_the_reviewed_catalog` |
-| 不承诺厂商云接入 | 只走本地 Home Assistant；策略里把"厂商云端接口/生态账号登录"类请求列为拒绝话题 | `hvsl/policy/risk_policy.json` | `tests/test_doc_claims.py`（文档 grep 命中 0） |
-| 音频不出本机 | ASR 本地 faster-whisper（`local_files_only` + `HF_HUB_OFFLINE=1`）；TTS 本地合成落 WAV；外放需 `--loud` | `pipeline/asr.py`、`pipeline/tts.py` | A7：`tests/test_privacy.py`（把 socket 全堵死后决策链仍完整跑通） |
-| 定时/场景类请求不假装执行 | 句子里带"明天/定时/预约"等 → 拒绝，而不是当场执行 | `pipeline/nlu.py` | 评测 A07 |
-
-> **为什么默认是规则解析：一次真实教训。** 第一版评测用本地 7B 模型跑同一套用例时，
-> 歧义档被"猜穿"了：`把灯打开` 被模型直接补成"全部四盏灯"并下发；`把窗户打开` 被解析成窗帘；
-> `调到26度` 被安到了客厅空调；`明天早上七点开灯` 变成了"现在就开灯"。
-> 危险动作档当时仍然全部被门禁拦住（拦在解析之后，与解析器无关），但**歧义与拒答档不能靠模型自觉**。
-> 所以上表最后三行的护栏被上移到引擎层，并且 `tests/test_guards.py` 用一个"假装很确定"的假解析器来验证它们；
-> 评测集默认跑 `rule`，`--provider llm` 作为对照单独出报告。
->
-> **加完护栏后重跑同一套（本机 qwen2.5:7b）**：67/68 通过，歧义档 10/10，**越权下发 0**；
-> 唯一失败是模型给"把大门打开"选了开窗帘的工具、被清单词表拒绝（少做，不是多做）。
-> 37.93% 的方案是被纠偏后才可用的 —— 这就是纠偏必须默认开的原因。
-
----
-
-## 6. 异常处理与降级
-
-| 情况 | 行为 | 留下的痕迹 |
+| 路径 | 启动方式 | 适用 |
 | --- | --- | --- |
-| 未知工具 / 无前缀工具名 | `rejected`，不下发 | `stage=reject` 行含原因 |
-| 参数越界或多余字段 | Pydantic 校验失败 → `rejected` | 同上 |
-| 目标设备找不到 | `rejected`（"找不到与…匹配的设备"） | 同上 |
-| 目标有歧义（多候选） | `clarification_required` + 候选列表，整条计划不下发 | `stage=clarify` |
-| 命中确认类危险动作 | `awaiting_confirmation` + 令牌 + TTL 文案 | `confirm(pending)` |
-| 命中拒绝类（燃气开阀等） | `rejected`，不进待确认队列 | `confirm(deny)` |
-| 确认超时 | `rejected`，明确"未下发" | `confirm(expired)` |
-| LLM 解析超时/输出不合法 | **自动降级**到规则解析，`degraded=true` + 原因写进留痕 | `stage=nlu` |
-| 后端超时 / 服务未注册 | 超时报 `failed` 且键保持占用（不重发）；未注册服务报"未送达"，允许重试 | `dispatch(failed)` |
-| 进程在下发中途崩溃 | 键停在 `in_flight`，后续同一意图永不重发（宁可少做不可多做） | `dispatch(in_flight_unknown)` |
+| CLI | `uv run hvsl chat` / `listen` / `demo` / `audit` | 本机验证全部决策逻辑，零外部依赖 |
+| HTTP | `uv sync --extra serve` 后 `uv run hvsl serve` | 仅监听 `127.0.0.1:8777`，绑定非本机地址会拒绝启动 |
+| Home Assistant | 把 `custom_components/home_voice_safety/` 拷进 HA 的 `custom_components/`（或经 HACS） | 真机集成，需 HA >= 2025.1.0（见 `hacs.json`） |
+
+> 集成自带 `vendor/` 源码快照，HACS 安装**不需要**再 `pip install hvsl`。
+> 改了 `hvsl/` 或 `pipeline/` 必须重跑 `python scripts/sync_vendor.py`，否则 HA 里跑的还是旧代码。
+
+### 3.4 环境自检
+
+```bash
+uv run hvsl doctor            # 后端 / 实体数 / 工具数 / 危险类别 / TTL / 去重窗口 / 解析器
+uv run hvsl doctor --with-asr # 追加 faster-whisper 探测
+uv run hvsl doctor --with-tts # 追加本地 TTS 探测
+```
+
+`doctor` 输出 JSON，可接进脚本做环境闸门（例：`entities_real`、`tools_registered`、`danger_classes`）。
 
 ---
 
-## 7. 性能与评测口径（三态标注）
+## 4. 主要配置
 
-方案 §5 里 `RTF < 1`、`说完→下发 P95 ≤ 3 s` 都标注为**设计值**。本项目把它们拆成可核的三类：
+配置来源优先级：**进程环境变量 > `.env` > `Settings` 默认值**（`hvsl/config.py::Settings.load`）。
+仓库只提交 `.env.example`；`.env` 已在 `.gitignore` 里。
+
+### 4.1 `.env` 中当前**生效**的键
+
+| 键 | 默认 | 作用 |
+| --- | --- | --- |
+| `HVSL_DB_PATH` | `var/decisions.db` | 审计与幂等 SQLite 位置（相对路径按仓库根解析） |
+| `HVSL_POLICY_PATH` | `hvsl/policy/risk_policy.json` | 风险策略；改它等于改安全边界，需评审 |
+| `HVSL_DEVICE_CATALOG` | `devices/devices.json` | 已评审设备清单，`danger:*` 标签的唯一来源 |
+| `HVSL_CONFIRM_TTL_SECONDS` | `120` | 确认有效期；调小=更容易因来不及确认而作废 |
+| `HVSL_DEDUP_WINDOW_SECONDS` | `30` | 幂等去重窗口；调小=重复指令更容易重复下发 |
+| `HVSL_AUDIT_RETENTION_DAYS` | `30` | 审计保留天数，`0`=永久；负数会被显式拒绝 |
+| `HVSL_STORE_UTTERANCE` | `1` | 是否把用户原句写入审计（`0` 则写 `[redacted]`） |
+| `HVSL_DISPATCH_TIMEOUT_SECONDS` | `8` | 单次后端下发超时 |
+| `HVSL_NLU_PROVIDER` | `rule` | `rule`=离线确定性；`llm`=本地 Ollama，失败自动降级回 `rule` |
+| `HVSL_NLU_TIMEOUT_SECONDS` | `12` | LLM 解析超时 |
+| `HVSL_LLM_CROSS_CHECK` | `true` | LLM 路径的影子纠偏；关掉会削弱歧义档护栏，不建议 |
+| `OLLAMA_BASE_URL` | `http://127.0.0.1:11434` | 本地 Ollama 地址；非 loopback 且未显式开闸时，构造解析器即抛错 |
+| `OLLAMA_MODEL` | `qwen2.5:7b` | 本地模型名 |
+| `HVSL_ALLOW_CLOUD_LLM` | `false` | 文本出机器的显式开关 |
+| `HA_BASE_URL` | 空 | 用 HA REST 后端时的实例地址 |
+| `HA_TOKEN` | 空 | HA 长期访问令牌（**不要提交**） |
+| `HA_REAL_ENTITIES` | 空 | 可联调的真实 `entity_id`，逗号分隔；未列出的按模拟标注 |
+| `ASR_PYTHON_BIN` | 空 | 装有 faster-whisper 的解释器；留空用当前解释器 |
+| `ASR_MODEL_DIR` | 空 | 模型权重目录，加载强制 `local_files_only=True` |
+| `ASR_DEVICE` | `cpu` | `cuda` / `cpu` |
+| `TTS_WAV_OUT` | `var/tts_last.wav` | TTS 合成落盘位置 |
+
+### 4.2 尚未接入的键（待补充）
+
+以下键出现在 `.env.example`，但 `Settings.load()` 目前**没有读取**，改了对运行没有影响：
+
+| 键 | 现状 |
+| --- | --- |
+| `HVSL_SERVER_HOST` / `HVSL_SERVER_PORT` | 只用于 `server.py` 的报错提示；实际监听地址来自 `Settings` 默认值 `127.0.0.1:8777` |
+| `HVSL_IN_FLIGHT_STALE_SECONDS` | 未读取；陈旧 `in_flight` 的判定用固定语义而不是该值 |
+| `ASR_MODEL_SIZE` | 未读取；模型由 `ASR_MODEL_DIR` 指向的权重决定 |
+
+统一标记：无法从代码确认的事项在本文用 **待补充** 标注，其余待填位置用 `【填：…】`，两者都可全文搜索。
+
+### 4.3 Home Assistant 向导配置
+
+| 项 | 说明 |
+| --- | --- |
+| 危险设备勾选 | 向导从 HA 实体里枚举可控实体；勾选者写入 `danger:user_selected`，**只升不降** |
+| `confirm_ttl` / `dedup_window` | 覆盖默认 120s / 30s |
+| `nlu_provider` | `rule` 或 `llm` |
+| `real_entities` | 真实设备 `entity_id`，未列出的按模拟标注 |
+| `notify_service` | 可选，确认推送服务名；不填则只发事件 + 蓝图 |
+| `remove_data` | 卸载时是否删 DB，默认 **false**（保留审计） |
+
+---
+
+## 5. 使用示例
+
+### 5.1 CLI：跑一句话，并完成危险动作确认
+
+```bash
+uv run hvsl chat
+# 你说> 打开客厅大灯                 → executed（低风险直接下发）
+# 你说> 解锁入户门锁                 → awaiting_confirmation，给出 token 与 TTL
+# 你说> /pending                     → 列出待确认动作
+# 你说> /confirm <token>             → executed（此时才真正下发）
+# 你说> /cancel <token>              → cancelled（不下发）
+# 你说> /audit <trace_id>            → 按 trace 打印完整留痕
+```
+
+不使用交互式 shell 时：
+
+```bash
+uv run hvsl demo                         # 13 步盲跑，退出码 0 = 全部符合预期
+uv run hvsl demo --out var/demo_run.json # 结果落盘
+uv run hvsl audit --limit 20             # 看最近 20 条留痕
+uv run hvsl audit --trace <trace_id>     # 反查一次请求
+uv run hvsl tools                        # 打印 28 个工具与 JSON Schema
+uv run hvsl say "门锁已确认但未下发" --loud  # 本地 TTS；不加 --loud 不外放
+uv run hvsl listen var/clip18.wav --no-tts  # 音频 → 本地 ASR → 决策链
+```
+
+### 5.2 HTTP（需 `--extra serve`）
+
+```bash
+uv run hvsl serve
+```
+
+```bash
+curl -s -X POST http://127.0.0.1:8777/v1/utterance \
+  -H 'content-type: application/json' \
+  -d '{"text":"解锁入户门锁","session_id":"living-room"}'
+
+# 危险动作会返回 confirmation_token，且 dispatch_count=0
+curl -s -X POST http://127.0.0.1:8777/v1/confirm \
+  -H 'content-type: application/json' \
+  -d '{"token":"<上一步的 token>","session_id":"living-room"}'
+
+curl -s http://127.0.0.1:8777/v1/pending
+curl -s "http://127.0.0.1:8777/v1/audit?trace_id=<trace>"
+```
+
+路由共 7 个：`GET /v1/health`、`GET /v1/devices`、`GET /v1/pending`、`GET /v1/audit`、
+`POST /v1/utterance`、`POST /v1/confirm`、`POST /v1/cancel`。
+契约核心是与框架无关的 `hvsl.server.handle_request`，FastAPI 只是薄适配层。
+
+### 5.3 Home Assistant 服务
+
+```yaml
+service: home_voice_safety.handle_utterance
+data:
+  text: 解锁入户门锁
+  session_id: living-room
+```
+
+随后用 `home_voice_safety.confirm_action`（可只给 `token`）或 `home_voice_safety.cancel_action` 收尾。
+6 个服务：`handle_utterance`、`confirm_action`、`cancel_action`、`list_pending`、`export_audit`、`purge_audit`。
+每次决策广播 `home_voice_safety_decision`；挂起危险动作额外触发 `home_voice_safety_confirmation_required`（含 token、目标、风险类别、过期时间、口语化文案）。
+
+---
+
+## 6. 目录结构
+
+```
+home-voice-safety-layer/
+├── hvsl/                        # 核心可安装包（不依赖 HA、不依赖网络）
+│   ├── models.py                # DeviceEntity / PlannedCall / Intent / ResolvedStep / PendingAction / Decision / AuditRecord
+│   ├── tools.py                 # 工具注册表：命名空间前缀 + Pydantic 参数模型 → JSON Schema
+│   ├── risk.py                  # 风险判定：声明式策略 → low / confirm / deny（含未评审实体兜底）
+│   ├── policy/risk_policy.json  # 危险规则 9 条 + 拒绝话题 2 条（改这里 = 改安全边界）
+│   ├── resolver.py              # 中文设备词 → entity_id（歧义/无匹配是显式结果）
+│   ├── gate.py                  # 确认门禁：待确认动作、TTL、单用途令牌、会话绑定
+│   ├── idempotency.py           # 幂等：SQLite 事务内抢锁，结果未知不重发
+│   ├── audit.py / store.py      # 留痕：先写后回写、按 trace 反查、保留期清理
+│   ├── guards.py                # 引擎层护栏：定时类拒绝、批量钳制、类指词词表校验
+│   ├── backends/                # simulated / home_assistant(REST) / HA 内本地
+│   ├── engine.py                # 决策链编排
+│   └── app.py / cli.py / server.py / config.py / catalog.py
+├── pipeline/                    # 语音载体：asr（faster-whisper）/ nlu（规则 + LLM）/ tts（本地）
+├── custom_components/home_voice_safety/   # HA 集成（含 vendor/ 源码快照与 services.yaml）
+├── devices/
+│   ├── devices.json             # 已评审设备清单（danger:* 与 domain_words 的唯一来源）
+│   └── inventory.md             # 由 scripts/gen_inventory.py 生成，禁止手改
+├── evals/                       # golden_set_v1.jsonl（68 条）+ judge.py
+├── tests/                       # 41 个 test_ 模块 + conftest.py：红线用例 + 契约测试 + 文档口径守卫
+├── scripts/                     # mutate / measure_latency / write_reports / sync_vendor / gen_inventory / ha_* 冒烟
+├── demo/                        # 13 步无障碍场景脚本
+├── reports/                     # 实测产物（JSON 原始 + Markdown 渲染）
+├── docs/                        # 方案、验证手册、HA 冒烟记录、脱敏与发布记录
+├── var/                         # 运行产物（已 gitignore：DB / 日志 / 音频 / 本地 HA 配置）
+└── pyproject.toml / uv.lock / requirements.txt / hacs.json / LICENSE
+```
+
+说明：方案原本把 `safety.py` / `audit.py` 放在集成目录下。本项目的**实现**在可安装的 `hvsl/` 里，
+集成侧只做再导出与 HA 适配——目的是一台没装 HA 的机器也能跑测试、评测与变异测试。
+`custom_components/home_voice_safety/safety.py` 与 `audit.py` 仍存在，且由 `tests/test_integration_backend.py` 断言与核心包是同一对象。
+
+---
+
+## 7. 测试方式
+
+```bash
+uv run pytest -o addopts="" -q     # 全量：本地实测 542 passed, 2 skipped（2026-11-23）
+uv run pytest -k safety_gate -q    # 单组：危险动作门禁
+uv run ruff check .                # lint（CI 同款）
+uv run mypy hvsl pipeline custom_components  # 类型检查（CI 同款；本机基线 0 errors）
+```
+
+> `pyproject.toml` 的 `addopts = "-q --no-header"`；CI 里用 `-o addopts=""` 覆盖，
+> 本地直接 `uv run pytest -q` 也可以。2 条 skip 是：需要真 Ollama 的实时用例、
+> 以及 FastAPI TestClient 与本机依赖冲突的用例。
+
+评测与产物（数字必须由产物生成，不允许手改）：
+
+```bash
+uv run python evals/judge.py -v                  # 68 条分级评测 → reports/评测结果.json + .md
+uv run python evals/judge.py --provider llm -v   # 同一套用例换本地 Ollama → reports/评测结果-llm.json
+uv run python scripts/mutate.py                  # 注入 16 个缺陷，验证测试套件会响 → reports/变异测试.json
+uv run python scripts/write_reports.py           # 由 JSON 重渲 reports/*.md（禁止手改 md）
+uv run python scripts/gen_inventory.py --check   # devices/inventory.md 与 devices.json 是否一致
+uv run python scripts/sync_vendor.py --check     # 集成 vendor/ 快照是否漂移
+uv run pytest -q tests/test_doc_claims.py        # README / 报告的措辞与数字守卫
+```
+
+---
+
+## 8. 性能与评测口径（三态标注）
+
+方案里 `RTF < 1`、`说完→下发 P95 ≤ 3 s` 都只是**设计值**。本项目把它们拆成可核的三类：
 
 | 指标 | 状态 | 数字与口径 |
 | --- | --- | --- |
-| 危险动作正确拦截率 | **实测** | 规则解析 **100%**（27/27），误下发 **0**；LLM 解析 96.3%（唯一失败是模型选错工具→系统拒绝，**仍然 0 越权下发**）—— `reports/评测结果.md` |
-| 工具调用首次成功率 | **实测** | 规则解析 **100%**；本地 Ollama(qwen2.5:7b) **62.07%**，另有 **37.93%** 被确定性纠偏后才可用（见 §7.1） |
-| 决策链分段延迟 | **实测** | 模拟后端 + 规则解析下的 nlu/dispatch/total 分段 P50/P95 —— `reports/评测结果.md` |
-| ASR 分段延迟与 RTF | **实测**（本机 RTX 4060，large-v3/float16/VAD） | 18s 短音频：模型加载 3.13s、解码 0.81s、**decode RTF 0.045**；整段 81 分钟：**RTF ≈ 0.10~0.12**。详见 `reports/语音链路分段实测.md` |
-| ASR 字错率 CER | **实测**（仅本机 TTS 合成语音，n=10 已知文本） | 主口径（数字等价归一化后）：tiny **0.1345（13.45%）**、small **0.0536（5.36%）**、medium **0.0111（1.11%）**；括号保留原样口径 tiny **0.207（20.70%）**、small **0.1511（15.11%）**、medium **0.1086（10.86%）**。归一化后总参照字数 **75**，S/D/I = **10/0/0**、**3/0/0**、**1/0/0**（pooled CER 0.1333 / 0.04 / 0.0133）；device=cuda / float16 / beam_size=1。逐条双口径见 `reports/ASR-CER.md`。真人 8kHz 无人工对齐参照，**未实测** |
-| TTS 合成延迟 | **实测**（本地 SAPI，落 WAV） | 同上文件；不外放 |
-| 唤醒率 / 误唤醒 / 远场指标 | **未实测，且不在范围内** | 本项目不做唤醒词（F-004），因此不提供这些数字 |
-| 端到端 P95 ≤ 3 s | **设计值**，且**冷启动口径下实测不成立** | 实测：新起进程 = 4.14s（加载占 3.13s）；模型常驻 = 约 0.81s。接真实设备网络往返后仍需重测 |
+| 危险动作正确拦截率 | **实测** | 规则解析 **100%**（27/27），越权下发 **0**；LLM 解析 96.3%，越权下发仍 **0** —— `reports/评测结果.md` |
+| 工具调用首次成功率 | **实测** | 规则解析 **100%**；本地 Ollama(qwen2.5:7b) **62.07%**，另有 **37.93%** 被确定性纠偏后才可用 |
+| 决策链分段延迟 | **实测** | 模拟后端 + 规则解析：意图解析 P95 **1.278 ms**、门禁+下发 P95 **0.015 ms** |
+| ASR 分段延迟与 RTF | **实测**（本机 RTX 4060，large-v3/float16/VAD） | 18s 短音频：加载 3.13s、解码 0.81s、**decode RTF 0.045**；整段 81 分钟：**RTF ≈ 0.10~0.12** → `reports/语音链路分段实测.md` |
+| ASR 字错率 CER | **实测**（仅本机 TTS 合成语音，n=10 已知文本） | 主口径（数字等价归一化后）：tiny **0.1345**、small **0.0536**、medium **0.0111**；原样口径 tiny **0.207**、small **0.1511**、medium **0.1086** → `reports/ASR-CER.md`。真人无人工对齐参照，**未实测** |
+| TTS 合成延迟 | **实测**（本地 SAPI，落 WAV） | 同上报告；默认不外放 |
+| 唤醒率 / 误唤醒 / 远场 | **未实测，且不在范围内** | 本项目不做唤醒词，因此不提供这些数字 |
+| 端到端 P95 ≤ 3 s | **设计值**，冷启动口径下实测不成立 | 新起进程 4.14s（加载占 3.13s）；模型常驻约 0.81s；接真实设备网络往返后需重测 |
 
-
-### 7.1 解析器对照（同一套 68 条用例，只换解析器）
+### 8.1 解析器对照（同一套 68 条分级评测集：single 19 / multi 12 / ambiguous 10 / danger 27 条，只换解析器）
 
 | 解析器 | 通过 | 危险档 | 越权下发 | 首次可用率 | 意图解析 P95 |
 | --- | --- | --- | --- | --- | --- |
@@ -213,132 +313,101 @@ GET  /v1/devices /v1/pending /v1/audit?trace_id=... /v1/health
 | `llm`（本机 Ollama qwen2.5:7b + 影子纠偏） | 67 / 68 | 26 / 27 | **0** | 62.07%（纠偏 37.93%） | 1901 ms |
 
 读法：
-- 危险档那一条唯一的失败，是模型给"把大门打开"选了**开窗帘**的工具，被清单词表拒绝——
-  系统没有执行任何东西。这是能力缺口（少做），不是安全问题（多做）。
-- LLM 路径下 37.93% 的方案是被确定性解析器纠偏后才可用的：这正是要把纠偏做成引擎层默认开的原因。
-- LLM 意图解析 P95 约 1.9 s，比规则路径慢四个数量级；对讲一句就动的场景，这是真实的体验成本。
+- 危险档唯一的失败是模型给"把大门打开"选了开窗帘的工具，被清单词表拒绝——系统没有执行任何东西：
+  这是能力缺口（少做），不是安全问题（多做）。
+- LLM 路径下 37.93% 的方案是被确定性解析器纠偏后才可用的，这就是纠偏必须默认开的原因。
+- LLM 意图解析 P95 约 1.9 s，比规则路径慢四个数量级；对"说一句就动"的场景这是真实体验成本。
+
+> Measured on this repo (simulated backend, rule parser): 68 graded cases with 27 danger cases,
+> **100% interception, 0 misdispatches**, and **16/16 injected defects caught** by the test suite.
 
 ---
 
-## 8. 验收标准对照（A1–A13）
+## 9. 隐私与数据边界
 
-| 编号 | 项 | 状态 | 复跑命令 |
-| --- | --- | --- | --- |
-| **A1 ★** | 危险动作必须确认后下发 | **已验证**（100% 拦截，0 误下发，有留痕） | `pytest tests/test_safety_gate.py` + `python evals/judge.py` |
-| **A2 ★** | 幂等：重复意图不重复执行 | **已验证**（重放 3 次只下发 1 次，含并发） | `pytest tests/test_idempotency.py` |
-| **A3 ★** | 不宣称厂商官方接入 | **已验证**（文档 grep 命中 0） | `pytest tests/test_doc_claims.py` |
-| **A4 ★** | 无未实测的性能宣称 | **已验证**（§7 三态表 + 报告口径声明） | `pytest tests/test_doc_claims.py` |
-| **A5 ★** | 测试有鉴别力 | **已验证**（16/16 变异被捕获，还原哈希一致） | `python scripts/mutate.py` |
-| A6 | 真实/模拟清单 | **已验证**（17 台逐台标注，文件由清单生成且校验一致） | `pytest tests/test_inventory.py` |
-| A7 | 音频不出本机 | **部分验证**：决策链在 socket 全堵死下跑通；**抓包验证待你在真机执行** | `pytest tests/test_privacy.py`，抓包见 §10 |
-| A8 | 可安装可复现 | **已验证**：本机 `pytest -q` 全绿（数量以 CI 输出为准；跳过的是需要真 Ollama 的实时用例与 FastAPI TestClient 本机依赖冲突用例） | `pip install -e . && pytest -q` |
-| A9 | 评测含危险动作档 | **已验证**（危险动作 27 条 ≥ 20） | `python evals/judge.py` |
-| A10 | 有 LICENSE | **已验证**（MIT，与 HA 生态兼容） | `head -3 LICENSE` |
-| A11 | 演示可盲跑 | **已验证**（13 步全通过，无手工步骤） | `python -m hvsl.cli demo` |
-| A12 | 无对外交付类表述 | **已验证**（grep 命中 0） | `pytest tests/test_doc_claims.py` |
-| A13 | 隐私与个保法边界写明 | **已验证**（§9 单列一节） | 见下 |
+家庭语音属于**高敏感**个人信息（行踪、居住、健康相关）。所以本项目把边界做成代码约束，而不是承诺：
 
-> **HA 真机联调（F-001 闸门）已执行**：2026-11-03 在 Docker Hub HA stable 上 **9/9 + 附加 3/3 + 蓝图 3/3 + soak 1/1 PASS**；`2025.1` 同级全 PASS，`2025.2.4` 同级全 PASS；2024.6 依赖不兼容（自带 pydantic 1.10.15），2025.3+ 未测。
-> 证据见 [`docs/HA真机冒烟结果-v0.1.md`](docs/HA真机冒烟结果-v0.1.md)、[`docs/HA多版本矩阵-v0.1.md`](docs/HA多版本矩阵-v0.1.md)。ASR 合成语音 2/2 PASS；公开真人 4 条 small 可识别但有错字（`opencc` 繁转简 + `pypinyin` target 级同音纠错已接入、错字仍在），medium 已取得并试跑但错字仍在（观察/观光旅游已修正，邮局/邮箱/蜿蜒/白皑皑仍错，未做人工对齐 CER）；真实设备、notify 真投递仍未验证（HA 2026 legacy `file`/`rest` 均不可用，仅 `mobile_app` 未验证）。
+1. **音频只在本地流转**：ASR 走本机 faster-whisper，模型加载强制 `local_files_only=True`，
+   子进程环境变量置 `HF_HUB_OFFLINE=1` / `TRANSFORMERS_OFFLINE=1`；不实现任何云端转写。
+2. **TTS 也是本地**：Windows SAPI / macOS `say` / `espeak-ng`，结果落 WAV；默认静音，播放需显式 `--loud`。
+3. **文本出机器要显式开闸**：解析器默认 `rule`；用本地 Ollama 也只走 loopback。
+   解析端点非 loopback 且未设 `HVSL_ALLOW_CLOUD_LLM=true` 时，**构造解析器阶段就抛错**。
+4. **接口只听本机**：`serve` 绑定非 `127.0.0.1` / `localhost` / `::1` 会被拒绝启动；HTTP 接口没有鉴权，不要暴露到局域网。
+5. **留痕在本地磁盘**：SQLite 单文件，不上传、不聚合、**不外发**；`export_audit` 默认脱敏用户原话。
+6. **sensor 不带敏感字段**：状态属性只有计数与 `risk_class` / `session_alias` / `expires_in` / `trace_id_hash`，token 与原句绝不进 HA recorder。
+7. **可自证**：`tests/test_privacy.py` 把 `socket.socket` / `create_connection` / `getaddrinfo` 换成抛错后，
+   仍完整跑完"危险动作挂起 → 确认 → 下发 → 留痕"。
 
----
-
-## 9. 隐私与数据边界（单列，A13）
-
-家庭语音数据在高敏感个人信息清单里属于"行踪、居住、健康"相关类别，一旦上云就不是
-"传输成本"问题，而是"责任归属"问题。所以本项目把边界做成代码约束，不是承诺：
-
-1. **音频只在本地流转**：ASR 走本机 faster-whisper，模型加载强制 `local_files_only=True`
-   且子进程环境变量 `HF_HUB_OFFLINE=1`、`TRANSFORMERS_OFFLINE=1`；本项目不实现任何云端转写。
-2. **TTS 也是本地**：Windows SAPI / macOS `say` / `espeak-ng`，合成结果落 WAV；
-   默认**不外放声音**，需要扬声器播放必须显式加 `--loud`。
-3. **文本出机器需要显式开闸**：解析器默认 `rule`（离线）。要用本地 Ollama 也只在
-   loopback；解析端点非 loopback 且未设置 `HVSL_ALLOW_CLOUD_LLM=true` 时，
-   **构造解析器阶段就抛错**（不是发请求前才拦）。
-4. **接口只听本机**：`serve` 绑定非 127.0.0.1/localhost 会被拒绝启动。
-5. **留痕在本地磁盘**：SQLite 单文件（`var/decisions.db`），不上传、不聚合、不外发。
-6. **可自证**：`tests/test_privacy.py` 把 `socket.socket` / `create_connection` / `getaddrinfo`
-   全部替换为抛错后，仍完整跑完"危险动作挂起 → 确认 → 下发 → 留痕"这条链。
-
-想抓包复核：
+想复核出网行为：
 
 ```bash
-# 跑决策链时不应出现任何出网连接（示例：Windows 用 Process Monitor 过滤 tcpout）
-python -m hvsl.cli chat
+uv run hvsl chat     # 决策链运行时不应出现任何出网连接（Windows 可用 Process Monitor 过滤 tcpout）
 ```
 
 ---
 
-## 10. 未覆盖清单（不粉饰）
+## 10. 未覆盖清单
 
 | 缺口 | 现状 | 影响 |
 | --- | --- | --- |
-| Home Assistant 实机联调 | **stable 9/9 + 附加 3/3 + 蓝图 3/3 + soak 1/1；2025.1 同级全 PASS；2025.2.4 同级全 PASS**（见 `docs/HA真机冒烟结果-v0.1.md` / `docs/HA多版本矩阵-v0.1.md`） | F-001 闸门已闭环；ASR 合成 2/2、真人 4 条有错字（`opencc` 繁转简 + `pypinyin` 同音纠错已接入、medium 已取得但错字仍在）；2024.6 不兼容 pydantic 1.10；notify legacy `file`/`rest` 均不可用（仅 `mobile_app` 未验证）；真实设备未验证 |
-| 真实设备 | **本轮 0 台**（17 个受控实体全为模拟） | 无法声称任何真实家庭环境下的可用性/延迟 |
-| ASR 字错率 | 合成语音已实测（主口径=数字等价归一化后）：tiny **0.1345（原样 0.207）**、small **0.0536（原样 0.1511）**、medium **0.0111（原样 0.1086）**，n=10 已知文本，见 §7 与 `reports/ASR-CER.md`；真人/家庭语音**未实测**（无逐条人工校对参照） | 真人、远距离、噪声场景不给数字 |
-| 麦克风实时采集 | 未实现（输入是音频文件） | "说完→下发"的麦克风段未计入 |
+| Home Assistant 实机联调 | stable **9/9 + 附加 3/3 + 蓝图 3/3 + soak 1/1 PASS**；2025.1 与 2025.2.4 同级全 PASS；2024.6 不兼容（自带 pydantic 1.10，集成要求 >=2.5）；2025.3+ 未测 | 9 步脚本覆盖的链路已验证，不等于 HA 全场景已验证 |
+| 真实设备 | 本轮 **0 台**（17 个受控实体全为模拟） | 无法声称真实家庭环境下的可用性/延迟 |
+| ASR 字错率 | 仅合成语音 n=10 已实测；真人/家庭噪声**未实测** | 真人、远距离、噪声场景不给数字 |
+| 麦克风实时采集 | 未实现（输入是音频文件） | "说完→下发"中的麦克风段未计入 |
+| notify 真投递 | HA 2026 的 legacy `file` 与 `rest` 平台均不可用，只有 `mobile_app` 未验证 | 确认推送只能靠事件 + 蓝图，不宣称手机通知已验证 |
 | 方言、远场、噪声 | 不在范围 | 不声称 |
-| 定时任务/场景/状态查询 | 显式拒绝 | 只覆盖即时设备指令 |
-| 音量/亮度相对调节（"调大一点"） | 已支持（±10%/次，按当前值 clamp；当前状态缺失时安全失败、不下发）；**HA 真机 7/7 PASS（证据 `var/ha-relative/results.json`）**：同一 session 连续两次调暗 50%→40%→30% 均 `executed`、各 1 次下发；关灯后调暗 0 下发；媒体实体 `playing` 状态下音量 40%→50%（音量与播放状态解耦，读不到音量仍 0 下发）；仍未纳入 68 例评测集；连续相对调节每次生效（该工具 `idempotent=False`）；确定性拒绝提示“未下发”、不计为可重试 | 仍受设备状态可读性约束；真实物理设备 0 台、并发未测 |
+| 定时任务 / 场景 / 状态查询 | 显式拒绝 | 只覆盖即时设备指令 |
 | 多语言 | 中文词表 | 英文指令不保证 |
-| HA 版本漂移 | stable 9/9 + 附加 3/3 + 蓝图 3/3 + soak 1/1；**2025.1 同级全 PASS**（pydantic 2.10.4）；**2025.2.4 同级全 PASS**（pydantic 2.10.6）；2025.2 滚动 tag 镜像未注册；2025.3+ 未测；HA 2024.6 **不兼容**（自带 pydantic 1.10，集成需 >=2.5），`hacs.json` 最低版本 2025.1.0 已有实机支撑 | 上游改动可能打断（方案 R3） |
-| 认证/加密/多用户 | HTTP 接口无鉴权，仅限本机 | 不要暴露到局域网 |
+| 认证 / 加密 / 多用户 | HTTP 无鉴权，仅限本机 | 不要暴露到局域网 |
+| 相对调节覆盖度 | 已支持（±10%/次、按当前值 clamp、读不到状态即 0 下发），HA 真机 7/7 PASS，但**未纳入 68 例评测集** | 并发与真实物理设备未测 |
 
-### 10.1 诊断、迁移、卸载与数据保留
+诊断、迁移与卸载边界：
 
-- **诊断**：在“设置 → 设备与服务 → Home Voice Safety Layer → 下载诊断”导出 JSON。内容只含配置路径、调参值、`engine.stats()` 与 sensor 聚合状态；**不含 token、用户原话或完整对话**。
-- **迁移**：配置条目从 v1 升到 v2 时只补默认 options（`remove_data=false`、空通知服务），保留已有 catalog/policy 路径与用户参数；资源缺失时迁移失败并保持 v1，日志带 `reason=migration_*`，可补路径后重试。
-- **卸载**：默认**保留** `/config/home_voice_safety_decisions.db` 以便审计；只有显式勾选 `remove_data` 才删除 DB、`-wal`、`-shm`。多个配置条目共存时，只有最后一个条目卸载才移除 `home_voice_safety.*` service。
-- **数据保留**：审计导出在 `/config/home_voice_safety/exports/`；删除 DB 前先备份，导出默认脱敏用户原话。
-- **HA 真机冒烟**：9 步清单见 [`scripts/ha_smoke.md`](scripts/ha_smoke.md)，2026-11-03 结果 **9/9 PASS**，证据见 [`docs/HA真机冒烟结果-v0.1.md`](docs/HA真机冒烟结果-v0.1.md)。
-
----
-
-## 11. English summary
-
-**home-voice-safety-layer** is the *decision and safety layer* of a local-first smart-home
-voice assistant: local ASR → intent → namespaced tool calls constrained by JSON Schema and
-Pydantic → a **confirmation gate for dangerous actions** (door unlock, gas, main breaker,
-high-power sockets, alarm disarm) → **idempotent dispatch** with pre-write/commit-write-back
-audit rows in SQLite.
-
-It deliberately does **not** do wake words, hardware, vendor cloud APIs, or multi-brand
-ecosystem access. Everything runs offline: the default backend is a set of labelled
-simulated entities and the default parser is deterministic, so `pip install -r
-requirements.txt && pytest -q && python evals/judge.py && python scripts/mutate.py`
-reproduces the claims on any machine.
-
-Verified numbers (measured, this repo, simulated backend): 68 graded cases across four
-tiers (27 danger cases), **100% correct interception of dangerous actions, 0 misdispatches**,
-100% first-attempt tool-call success with the rule parser, and **16/16 injected defects
-caught** by the test suite with byte-identical source restoration. Audio never leaves the
-machine: ASR is local faster-whisper with `local_files_only` + `HF_HUB_OFFLINE`, TTS is local,
-the HTTP server binds to loopback only, and the test suite runs the whole chain with all
-network sockets monkeypatched to raise. Not measured and not claimed: real-human character error rate,
-wake-word performance, far-field behaviour, end-to-end latency with real devices.
-
-Licensed under MIT. Not a commercial offering; it is a portfolio piece, and the boundary is
-enforced by code and tests rather than by wording.
+- **诊断**：HA「下载诊断」只导出配置路径、调参值、`engine.stats()` 与 sensor 聚合；不含 token、原句或完整对话。
+- **迁移**：配置条目 v1→v2 只补默认 options；资源缺失时迁移失败并保持 v1，日志带 `reason=migration_*`，可补路径后重试。
+- **卸载**：默认保留 DB 以便审计；只有显式勾选 `remove_data` 才删 DB 与 `-wal`/`-shm`。多条目共存时，最后一个条目卸载才移除服务。
+- **保留期**：`purge_audit` 按 `HVSL_AUDIT_RETENTION_DAYS` 清理；`failed_unknown` / `in_flight_unknown` 证据永不删除。
 
 ---
 
-## 12. 待确认清单
+## 11. 贡献说明
 
-统一标记 `【填：…】`，全文可搜索：
+本项目是单人作品，但欢迎以**可验证**的方式参与：
 
-- 【填：B4 可联调真实设备清单与是否有常开独显机】——决定 `devices/devices.json` 里哪几台改成 `real`
-- 【填：B5 每周 1.5 人日是否含周末整块时间】——方案判定不成立则本方向不成立
-- 【填：B1 是否主投智能硬件厂】——决定本盘子是备选还是主选
-- 【填：选定 HA 版本与安装方式（Docker ghcr.io / venv）】——本机探测：Docker Hub 不可达，ghcr.io 可达
-- 【填：许可证最终选择 MIT / Apache-2.0】——当前按 MIT 落地，Apache-2.0 需换 `LICENSE`
-- 【已完成】GitHub 用户名确定为 `young0617-02`；`manifest.json` 的 `codeowners` / `documentation` / `issue_tracker` 已指向真实仓库
-- 【已完成】HA 真机 9 步冒烟：9/9 PASS，证据见 `docs/HA真机冒烟结果-v0.1.md`
+1. **提交前必须自测**（命令见 §7）：`pytest`（含 `-o addopts=""`）、`ruff check .`、`mypy hvsl pipeline custom_components`。
+2. **不得放宽红线**：危险动作确认门禁、幂等不重发、未评审实体兜底、隐私边界（音频不出本机）。
+   相关断言在 `tests/test_safety_gate.py`、`tests/test_idempotency.py`、`tests/test_privacy.py`、`tests/test_unreviewed_entity.py`。
+3. **改 `hvsl/` 或 `pipeline/` 必须同步 vendor**：`python scripts/sync_vendor.py`，提交前跑 `--check`。
+4. **改设备清单必须重新生成清点**：`python scripts/gen_inventory.py`，不要手改 `devices/inventory.md`。
+5. **不要在报告里手改数字**：`reports/*.md` 由 `scripts/write_reports.py` 从 JSON 渲染，`tests/test_reports.py` 做字节比对。
+6. **文档不得夸大**：`tests/test_doc_claims.py` 会 grep 未实测指标、厂商接入表述与数字漂移；
+   新增未实测结论时按"实测 / 设计值 / 未实测"三态标注。
+7. **提交信息**用中文概述"为什么要改"，一次提交只做一件事；不要提交 `.env`、`var/`、音频或数据库。
+
+问题与建议请走仓库的 issue tracker；涉及安全红线的改动请先开 issue 说明边界影响。
 
 ---
 
-## 13. 许可与声明
+## 12. 许可证
 
-- 许可：MIT（见 `LICENSE`）。
-- 本项目为单人自主实现的开源作品集，全部演示设备为模拟实体；
-  危险动作相关的实体全部保持模拟，不接任何真实负载。
-- 生态参考：Home Assistant（本地集成宿主）、faster-whisper（本地 ASR）、Ollama（可选本地解析）。
+MIT（见 [`LICENSE`](LICENSE)）。与 Home Assistant 生态兼容。
+本项目为单人自主实现的开源作品，全部演示设备为模拟实体；危险动作相关的实体全部保持模拟，不接任何真实负载。
+
+生态参考：Home Assistant（本地集成宿主）、faster-whisper（本地 ASR）、Ollama（可选本地解析）。
+
+---
+
+## 13. 待补充清单
+
+以下事项在当前仓库里**无法由代码或产物确认**，统一用 **待补充** 标注：
+
+| 项 | 待补充的内容 |
+| --- | --- |
+| HA 版本上限 | 2025.3 及以后版本未测，`hacs.json` 只声明最低 2025.1.0 |
+| notify 真投递 | 需要一台真实手机 + `mobile_app` 才能验证，当前只有事件与蓝图路径的结论 |
+| 真实设备 | 待补充可联调设备清单；决定 `devices/devices.json` 里哪几台可以改成 `real` |
+| 真人语音 CER | 需要逐条人工校对参照，当前只有 TTS 合成语音的 CER |
+| 独立文档站 | 【填：文档站地址】——当前所有文档都在 `docs/` 目录内 |
+| `hvsl.__version__` | 包内为 `0.1.0`，与 `pyproject.toml` / `manifest.json` 的 `0.2.0` 不一致；待补充以哪一处为准（当前以 `0.2.0` 为对外版本） |
+| 4 个 `.env` 键 | 见 §4.2：`HVSL_SERVER_HOST`、`HVSL_SERVER_PORT`、`HVSL_IN_FLIGHT_STALE_SECONDS`、`ASR_MODEL_SIZE` 未接入 |
+| Linux/macOS 本机验证 | 开发与真机验证都在 Windows + Docker 上完成；macOS/Linux 直跑为待补充 |

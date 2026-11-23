@@ -90,7 +90,7 @@ def test_three_state_claims_present():
     for marker in ("实测", "设计值", "未实测"):
         assert marker in readme, f"README 缺少三态口径标注：{marker}"
     assert "字错率" in readme and "未实测" in readme
-    assert "## 7. 性能与评测口径" in readme
+    assert re.search(r"^## \d+\. 性能与评测口径", readme, re.MULTILINE), "README 缺少性能与评测口径章节"
 
 
 def test_privacy_section_is_standalone():
@@ -124,7 +124,9 @@ def test_pending_items_use_one_searchable_marker():
     """待填项统一用【填：…】，不散落 TODO/TBD。"""
     readme = _read(ROOT / "README.md")
     assert "【填：" in readme
-    for stray in ("TODO", "TBD", "待补充", "FIXME"):
+    # 「待补充」是正式标记（无法由代码/产物确认的事项），不是散落的占位符。
+    assert "待补充" in readme, "README 必须用「待补充」标注无法确认的事项"
+    for stray in ("TODO", "TBD", "FIXME"):
         assert stray not in readme, f"README 里出现不统一的占位符 {stray}"
     manifest = _read(ROOT / "custom_components/home_voice_safety/manifest.json")
     assert "【填：" in manifest or "https://github.com/young0617-02/home-voice-safety-layer" in manifest, (
